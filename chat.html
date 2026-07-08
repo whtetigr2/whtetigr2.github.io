@@ -1,0 +1,593 @@
+<meta charset="utf-8">
+<title>Molten Chat — Persistent Stochastic Runtime</title>
+<style>
+  :root{
+    --bg:#0d0b09; --panel:#161310; --panel2:#0a0908; --line:#2a241c;
+    --gold:#e8a33d; --gold-bright:#ffd27a; --gold-dim:#7a5a22;
+    --ink:#efe7da; --dim:#8a7f6e; --faint:#5a5245;
+    --ok:#8fce6b; --warn:#e86a4a;
+    --mono:ui-monospace,'Cascadia Code',Consolas,'Courier New',monospace;
+    --sans:system-ui,'Segoe UI',sans-serif;
+  }
+  html,body{background:var(--bg);color:var(--ink);margin:0;padding:0}
+  body{font-family:var(--sans);font-size:14px;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:14px 18px 40px}
+  a{color:var(--gold)}
+  h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.01em}
+  h1 .sub{color:var(--dim);font-weight:400}
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;
+    border-bottom:1px solid var(--line);padding-bottom:10px;flex-wrap:wrap}
+  .stats{display:flex;gap:20px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
+  .stat .k{font-size:9.5px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+  .stat .v{font-family:var(--mono);font-size:15px}
+  .stat .v.gold{color:var(--gold-bright)}
+  #status{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:13px}
+  #statusDot{width:9px;height:9px;border-radius:50%;background:var(--gold);
+    animation:pulse 1.1s infinite alternate}
+  #statusDot.settled{background:var(--ok);animation:none}
+  @keyframes pulse{from{opacity:.35}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){#statusDot{animation:none}}
+
+  .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 6px}
+  section{margin-top:16px}
+
+  /* prompt bar */
+  .promptbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input.txt{background:#1b1712;border:1px solid var(--line);color:var(--ink);
+    padding:8px 10px;border-radius:6px;font-family:var(--mono);font-size:13px;flex:1;min-width:220px}
+  input.txt:focus{outline:1px solid var(--gold-dim)}
+  button{background:#1b1712;border:1px solid var(--gold-dim);color:var(--gold-bright);
+    padding:7px 12px;border-radius:6px;font-family:var(--mono);font-size:12.5px;cursor:pointer}
+  button:hover{border-color:var(--gold);background:#241d14}
+  button:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+  button.quiet{color:var(--dim);border-color:var(--line)}
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+  /* molten strip */
+  .stripbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 12px 10px;overflow-x:auto}
+  .striphead{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--dim);margin-bottom:10px;min-width:600px}
+  .striphead .g{color:var(--gold)}
+  .strip{display:flex;gap:6px;align-items:flex-start}
+  .chip{border:1px solid var(--gold);color:var(--gold-bright);padding:7px 9px;border-radius:6px;
+    font-family:var(--mono);font-size:16px;white-space:nowrap;align-self:flex-start}
+  .chip.oov{border-style:dashed;border-color:var(--warn);color:var(--warn)}
+  .slot{display:flex;flex-direction:column;align-items:center;min-width:78px;cursor:pointer;
+    border-radius:8px;padding:4px 3px;border:1px solid transparent}
+  .slot:hover{border-color:var(--line);background:#1a1611}
+  .slot .idx{font-size:9px;color:var(--faint);font-family:var(--mono)}
+  .slot .main{font-family:var(--mono);font-size:19px;padding:3px 5px;white-space:nowrap;transition:filter .25s}
+  .slot .ghosts{display:flex;flex-direction:column;align-items:center;margin-top:2px}
+  .slot .ghost{font-family:var(--mono);font-size:10.5px;color:var(--dim);white-space:nowrap;
+    padding:0 4px;border-radius:4px}
+  .slot .ghost:hover{color:var(--gold-bright);background:#241d14}
+  .slot.pinned{border-color:var(--gold)}
+  .slot.pinned .main{color:var(--gold-bright);filter:none!important;text-shadow:none!important;opacity:1!important}
+  .slot.pinned .ghosts{opacity:.25}
+  .hint{color:var(--faint);font-size:11.5px;margin-top:6px}
+
+  /* published */
+  .pub{font-family:var(--mono);font-size:17px;padding:13px 14px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:10px;overflow-x:auto;white-space:nowrap}
+  .pub .clamped{color:var(--gold-bright)}
+  .pub .free{color:var(--ink)}
+  .pubrow{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+  .pubmeta{font-family:var(--mono);font-size:12px;color:var(--dim)}
+
+  /* ensemble */
+  .ens{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+  .ens table{border-collapse:collapse;font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums}
+  .ens th{color:var(--faint);font-weight:400;padding:2px 7px;text-align:left}
+  .ens td{padding:2px 7px;color:var(--dim);white-space:nowrap}
+  .ens td.dis{color:var(--gold)}
+  .ens td.ch{color:var(--faint)}
+
+  /* instruments */
+  .grid{display:grid;grid-template-columns:1fr 300px 250px;gap:14px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .bars{display:flex;align-items:flex-end;gap:5px;height:86px;margin-top:6px;overflow-x:auto;padding-bottom:2px}
+  .barcol{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:24px}
+  .barv{font-size:8.5px;color:var(--faint);font-family:var(--mono)}
+  .bar{width:18px;background:linear-gradient(180deg,var(--gold-bright),#6d4413);border-radius:2px 2px 0 0;min-height:1px}
+  .barn{font-size:9px;color:var(--faint);font-family:var(--mono);margin-top:3px}
+  .met{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12.5px;
+    padding:3.5px 0;border-bottom:1px dashed #221c14;font-variant-numeric:tabular-nums}
+  .met:last-child{border-bottom:none}
+  .met .n{color:var(--dim);font-family:var(--sans);font-size:12px}
+  .met .val{color:var(--ink)} .met .val.g{color:var(--ok)} .met .val.o{color:var(--gold-bright)}
+  .ctrl{margin-top:10px}
+  .ctrl label{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);
+    font-family:var(--mono);margin-bottom:2px}
+  input[type=range]{width:100%;accent-color:var(--gold)}
+  .btnrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  canvas#etrace{width:100%;height:60px;background:var(--panel2);border-radius:6px;border:1px solid var(--line)}
+
+  .legend .met .swatch{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:7px;vertical-align:-2px}
+
+  footer{margin-top:22px;border-top:1px solid var(--line);padding-top:12px;color:var(--dim);font-size:12.5px;max-width:72ch}
+  footer strong{color:var(--ink)}
+  details{margin-top:10px;color:var(--dim);font-size:12px}
+  details .vocab{font-family:var(--mono);line-height:1.9;font-size:11px}
+  details .vocab span{background:#1b1712;border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin:0 2px}
+  .note{color:var(--warn);font-family:var(--mono);font-size:11.5px;margin-top:6px;min-height:16px}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Molten Chat <span class="sub">— Persistent Stochastic Runtime · live instrument</span></h1>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">Chains</div><div class="v" id="stK">8</div></div>
+      <div class="stat"><div class="k">Sweeps</div><div class="v" id="stSweeps">0</div></div>
+      <div class="stat"><div class="k">β (inv. temp)</div><div class="v gold" id="stBeta">1.40</div></div>
+      <div class="stat"><div class="k">Best E (nats)</div><div class="v gold" id="stBest">—</div></div>
+      <div class="stat"><div class="k">State</div><div class="v"><span id="status"><span id="statusDot"></span><span id="statusTxt">RELAXING</span></span></div></div>
+    </div>
+  </header>
+
+  <section>
+    <p class="lbl">Chat bar — clamp a prompt, optionally clamp an ending. Nothing ever restarts.</p>
+    <div class="promptbar">
+      <input class="txt" id="inPrefix" value="the future of ai is" aria-label="prompt (clamped prefix)" placeholder="prompt (clamped prefix)…">
+      <input class="txt" id="inSuffix" value="we build together ." aria-label="optional ending (clamped suffix)" placeholder="optional ending (clamped suffix)…">
+      <button id="btnApply">Clamp &amp; continue</button>
+    </div>
+    <div class="presets">
+      <button id="presetA" class="quiet">A · free relax (prompt only)</button>
+      <button id="presetB" class="quiet">B · clamp the ending</button>
+      <button id="presetC" class="quiet">C · pin “energy” mid-window</button>
+      <button id="presetD" class="quiet">D · reverse: grow backward from the ending</button>
+    </div>
+    <div class="note" id="note"></div>
+  </section>
+
+  <section>
+    <div class="stripbox">
+      <div class="striphead">
+        <span class="g">clamped prefix (gold = pinned)</span>
+        <span>molten response window — live ensemble mode + ghost candidates</span>
+        <span class="g">clamped suffix</span>
+      </div>
+      <div class="strip" id="strip"></div>
+    </div>
+    <p class="hint">Click a molten word to pin it (gold). Click a ghost candidate to pin that word instead. Click a pinned word to release it back to molten. The chains keep running through every change.</p>
+  </section>
+
+  <section>
+    <p class="lbl">Published — lowest-energy full sentence seen so far under the current clamps</p>
+    <div class="pubrow">
+      <div class="pub" id="pub">relaxing…</div>
+      <div class="pubmeta" id="pubMeta"></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="lbl">Ensemble — each replica chain’s current state (gold = disagrees with ensemble mode)</p>
+    <div class="ens" id="ens"></div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <p class="lbl">Per-slot flip rate (EMA · higher = hotter)</p>
+      <div class="bars" id="bars"></div>
+      <p class="lbl" style="margin-top:12px">Mean ensemble energy (last 400 sweeps)</p>
+      <canvas id="etrace" width="560" height="60"></canvas>
+    </div>
+    <div class="card">
+      <p class="lbl">Controls</p>
+      <div class="ctrl"><label><span>β — inverse temperature (1.0 = model’s true distribution)</span><span id="vBeta">1.40</span></label>
+        <input type="range" id="rBeta" min="0.3" max="3" step="0.05" value="1.4"></div>
+      <div class="ctrl"><label><span>replica chains K</span><span id="vK">8</span></label>
+        <input type="range" id="rK" min="4" max="16" step="1" value="8"></div>
+      <div class="ctrl"><label><span>sweeps / second</span><span id="vSps">18</span></label>
+        <input type="range" id="rSps" min="1" max="60" step="1" value="18"></div>
+      <div class="ctrl"><label><span>molten window size (slots)</span><span id="vW">10</span></label>
+        <input type="range" id="rW" min="6" max="14" step="1" value="10"></div>
+      <div class="btnrow">
+        <button id="btnShake">🔥 Shake (heat pulse)</button>
+        <button id="btnAnneal">❄ Anneal (cool → crystallize)</button>
+      </div>
+    </div>
+    <div class="card legend">
+      <p class="lbl">System metrics</p>
+      <div class="met"><span class="n">ΔE (mean, last sweep)</span><span class="val" id="mDE">—</span></div>
+      <div class="met"><span class="n">avg flip rate</span><span class="val o" id="mFlip">—</span></div>
+      <div class="met"><span class="n">diversity (uniq tok / slot)</span><span class="val" id="mDiv">—</span></div>
+      <div class="met"><span class="n">slot updates / s</span><span class="val" id="mUps">—</span></div>
+      <div class="met"><span class="n">vocabulary size</span><span class="val" id="mV">—</span></div>
+      <p class="lbl" style="margin-top:12px">Legend — every effect is measured</p>
+      <div class="met"><span class="n"><span class="swatch" style="border:1px solid var(--gold)"></span>pinned (clamped)</span></div>
+      <div class="met"><span class="n"><span class="swatch" style="background:linear-gradient(90deg,#fff,#e8a33d)"></span>glow = flip rate</span></div>
+      <div class="met"><span class="n"><span class="swatch" style="filter:blur(2px);background:#efe7da"></span>blur = slot entropy</span></div>
+      <div class="met"><span class="n"><span class="swatch" style="background:#5a5245"></span>ghosts = ensemble candidates</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <strong>What is real here:</strong> everything you can see move. K parallel Gibbs chains run
+    continuously in this page and are never restarted; pins and prompt edits are clamps applied to
+    live state. Glow = measured flip rate, blur = measured slot entropy, ghosts = the ensemble’s
+    actual recent candidates (EMA), the published line = the lowest-energy configuration actually
+    visited, the energy trace = the real mean NLL in nats (lower is better). β=1 samples the model’s
+    true conditional distribution; annealing is a real β schedule. Backward information flow is real:
+    a clamped ending propagates leftward through the chain factors.
+    <br><br>
+    <strong>What is a stand-in:</strong> the energy model. A browser cannot run LLaMA, so this page
+    uses a bigram chain-MRF built from the 126-sentence original corpus below (view source) — not a
+    transformer. The runtime semantics (energy + clamp mask + schedule, observe→constrain→relax→publish)
+    are identical to EXP-011 on THRML; the transformer-energy version of this exact interface is
+    EXP-012 on the Lightning L4, with the mechanism receipt already on file (EXP-010: clamped-Gibbs
+    infilling through GPT-2 attention, suffix-NLL +8.77/+11.50/+2.64 nats vs forward-only). This demo
+    runs exact heat-bath Gibbs, so there is no accept-rate gauge — accept/reject is a Metropolis
+    quantity and will appear on the LLaMA build, where it is real.
+    <details><summary>Toy vocabulary (words you can type in the chat bar)</summary>
+      <div class="vocab" id="vocabList"></div>
+    </details>
+  </footer>
+</div>
+
+<script>
+'use strict';
+/* ---------- corpus (original text, written for this demo) ---------- */
+const CORPUS=[
+"the future of ai is shaped by many minds .","the future of ai is built by open communities .",
+"the future of ai is not written by one model .","the future of ai is driven by energy .",
+"the future of ai is shaped not by scale but by structure .","the future of computing is thermodynamic .",
+"the future of computing is shaped by physics .","the future is not decided by one machine .",
+"the future belongs to open systems .","ai is shaped not by one model but by many minds .",
+"ai is built not by one company but by many hands .","the future of work is shaped by ai .",
+"one model cannot hold the future .","many minds build more than one mind .",
+"open systems learn faster than closed systems .","we build the future together .",
+"we build open systems together .","we learn and we build together .",
+"together we build the future of ai .","we build together .",
+"energy flows through the network .","the system relaxes into a low energy state .",
+"the machine settles into an answer .","heat is not waste .","heat is computation .",
+"noise is not the enemy .","noise is the raw material of sampling .",
+"sampling is the native operation of the hardware .","the hardware samples from a distribution .",
+"a distribution is the honest answer .","the answer crystallizes out of noise .",
+"order emerges from noise .","the network relaxes and the answer emerges .",
+"clamp the question and relax the answer .","the clamp mask is the program .",
+"direction is data not control .","the runtime never restarts .","the runtime holds every state .",
+"the chains never stop .","every sweep lowers the energy .","low energy states are good answers .",
+"the energy landscape guides the search .","the flow of energy is computation .",
+"the system explores many states at once .","replicas explore the landscape in parallel .",
+"parallel chains find more modes .","the ensemble is smarter than one chain .",
+"physics does the work .","the machine computes by cooling .","cooling turns noise into structure .",
+"structure is frozen information .","information flows both ways .","the past constrains the future .",
+"the future constrains the past .","clamp the ending and the middle rewrites itself .",
+"the sentence settles like a crystal .","words condense out of the churn .",
+"minds meet in open systems .","we meet in the middle .","the middle listens to both sides .",
+"both sides agree in the end .","in the end the energy is low .",
+"when the energy is low the answer is ready .","ready answers are published .",
+"publish the best answer so far .","good answers come from good constraints .",
+"constraints are not limits they are guidance .","guidance flows backward through the chain .",
+"the chain carries information backward .","backward and forward are the same operation .",
+"the same operation with a different mask .","a different mask gives a different direction .",
+"the direction is chosen by the user .","the user pins a word and the system adapts .",
+"pin a word and watch the sentence adapt .","the system adapts without restarting .",
+"nothing restarts .","everything persists .","the state persists across every change .",
+"change the constraint and the answer follows .","between the clamps the words are free .",
+"free words flicker until they settle .","the settled words form the answer .",
+"the sentence forms from both ends .","both ends pull on the middle .",
+"the answer is in the data .","the data speaks for itself .","many minds are better than one .",
+"one mind is not enough .","the machine learns from data .","the model learns from many examples .",
+"people build machines and machines help people .","we ask questions and the system answers .",
+"the question shapes the answer .","a good question is half the answer .",
+"the world is made of systems .","systems are made of parts .","the parts move together .",
+"everything moves toward balance .","balance is a moving target .","the work is never finished .",
+"the work continues .","we continue the work together .","this is how we build .",
+"this is how the machine thinks .","the machine thinks in probabilities .",
+"probabilities are honest .","honesty is a discipline .","the discipline holds under pressure .",
+"pressure makes the crystal .","by many minds we build together .",
+"with many hands we build together .","with open systems we build together .",
+"in open systems we build together .","from noise we build order .","and we build together .",
+"so we build together .","thermodynamic computing turns heat into answers .",
+"the hardware is thermodynamic .","the answer belongs to everyone .",
+"everyone can watch the machine think .","watch the words find their places .",
+"each word finds its place .","the middle is where the action is .",
+"the action happens between the clamps .","we build what the future needs ."
+];
+
+/* ---------- bigram chain-MRF ---------- */
+function tokenize(s){
+  return s.toLowerCase().replace(/[^a-z. ]/g,' ').replace(/\./g,' . ')
+          .split(/\s+/).filter(Boolean);
+}
+const stream=[]; CORPUS.forEach(s=>tokenize(s).forEach(t=>stream.push(t)));
+const vocab=[...new Set(stream)]; vocab.push('⟨unk⟩');
+const N=vocab.length, tid=new Map(vocab.map((w,i)=>[w,i])), UNK=N-1;
+const cnt=new Float64Array(N*N), rowT=new Float64Array(N);
+for(let i=0;i<stream.length-1;i++){
+  const a=tid.get(stream[i]), b=tid.get(stream[i+1]); cnt[a*N+b]++; rowT[a]++;
+}
+const ALPHA=0.05, rowDen=new Float64Array(N);
+for(let a=0;a<N;a++) rowDen[a]=Math.log(rowT[a]+ALPHA*N);
+function lp(a,b){ return Math.log(cnt[a*N+b]+ALPHA)-rowDen[a]; }   // log P(b|a)
+
+/* ---------- runtime state ---------- */
+const S={
+  prefixW:[],prefixI:[],prefixO:[], suffixW:[],suffixI:[],suffixO:[],
+  W:10, K:8, beta:1.4, sps:18,
+  pins:[], chains:[], hist:[], histT:null, flip:null,
+  sweeps:0, bestE:Infinity, bestSeq:null, meanE:NaN, prevMeanE:NaN, trace:[],
+  annealTarget:null
+};
+const scratch=new Float64Array(N);
+const rnd=()=>Math.random();
+const randTok=()=>Math.floor(rnd()*(N-1)); // exclude UNK from random init
+
+function parseWords(s,fallback){
+  const w=tokenize(s); if(!w.length) w.push(fallback);
+  return {W:w, I:w.map(x=>tid.has(x)?tid.get(x):UNK), O:w.map(x=>!tid.has(x))};
+}
+function setPrompt(pre,suf){
+  let p=parseWords(pre,'.'), q=parseWords(suf,'.');
+  S.prefixW=p.W; S.prefixI=p.I; S.prefixO=p.O;
+  S.suffixW=q.W; S.suffixI=q.I; S.suffixO=q.O;
+  document.getElementById('inPrefix').value=p.W.join(' ');
+  document.getElementById('inSuffix').value=q.W.join(' ');
+  const oov=[...p.W.filter((w,i)=>p.O[i]),...q.W.filter((w,i)=>q.O[i])];
+  note(oov.length?('not in toy vocabulary (clamped as ⟨unk⟩, carries no coupling): '+oov.join(', ')):'');
+  resetPublish();
+}
+function setWindow(W){
+  const old=S.chains, oldPins=S.pins, oldW=S.W; S.W=W;
+  S.pins=Array.from({length:W},(_,i)=> i<oldW && oldPins[i]!==undefined ? (oldPins[i]??-1) : -1);
+  if(!Array.isArray(S.pins)) S.pins=new Array(W).fill(-1);
+  S.chains=Array.from({length:S.K},(_,c)=>{
+    const st=new Int32Array(W);
+    for(let i=0;i<W;i++) st[i]=(old[c]&&i<oldW)?old[c][i]:randTok();
+    return st;
+  });
+  S.hist=Array.from({length:W},(_,i)=>new Float64Array(N));
+  S.histT=new Float64Array(W); S.flip=new Float64Array(W);
+  for(let i=0;i<W;i++) if(S.pins[i]>=0) S.chains.forEach(st=>st[i]=S.pins[i]);
+  buildStrip(); resetPublish();
+}
+function setK(K){
+  const W=S.W;
+  while(S.chains.length<K){
+    const st=new Int32Array(W);
+    for(let i=0;i<W;i++) st[i]=S.pins[i]>=0?S.pins[i]:randTok();
+    S.chains.push(st);
+  }
+  S.chains.length=K; S.K=K;
+}
+function resetPublish(){ S.bestE=Infinity; S.bestSeq=null; S.trace=[]; }
+function note(msg){ document.getElementById('note').textContent=msg; }
+
+/* ---------- sampler ---------- */
+function gibbsDraw(L,R,beta){
+  let best=-1e18;
+  for(let w=0;w<N;w++){ const s=lp(L,w)+lp(w,R); scratch[w]=s; if(s>best)best=s; }
+  let tot=0;
+  for(let w=0;w<N;w++){ const p=Math.exp(beta*(scratch[w]-best)); scratch[w]=p; tot+=p; }
+  let r=rnd()*tot;
+  for(let w=0;w<N;w++){ r-=scratch[w]; if(r<=0) return w; }
+  return N-1;
+}
+function energyOf(st){
+  let e=0, prev=S.prefixI[0];
+  for(let j=1;j<S.prefixI.length;j++){ e-=lp(prev,S.prefixI[j]); prev=S.prefixI[j]; }
+  for(let i=0;i<S.W;i++){ e-=lp(prev,st[i]); prev=st[i]; }
+  for(let j=0;j<S.suffixI.length;j++){ e-=lp(prev,S.suffixI[j]); prev=S.suffixI[j]; }
+  return e;
+}
+const DEC=0.96;
+function sweepAll(){
+  const W=S.W, flips=new Float64Array(W); let sumE=0;
+  const pl=S.prefixI[S.prefixI.length-1], sf=S.suffixI[0];
+  for(const st of S.chains){
+    for(let i=0;i<W;i++){
+      if(S.pins[i]>=0){ st[i]=S.pins[i]; continue; }
+      const L=i?st[i-1]:pl, R=i<W-1?st[i+1]:sf;
+      const nw=gibbsDraw(L,R,S.beta);
+      if(nw!==st[i]) flips[i]++;
+      st[i]=nw;
+    }
+    const E=energyOf(st); sumE+=E;
+    if(E<S.bestE){ S.bestE=E; S.bestSeq=Array.from(st); }
+  }
+  for(let i=0;i<W;i++){
+    S.histT[i]=S.histT[i]*DEC+S.K;
+    const h=S.hist[i]; for(let w=0;w<N;w++) h[w]*=DEC;
+    for(const st of S.chains) h[st[i]]+=1;
+    S.flip[i]=0.9*S.flip[i]+0.1*flips[i]/S.K;
+  }
+  S.prevMeanE=S.meanE; S.meanE=sumE/S.K;
+  S.trace.push(S.meanE); if(S.trace.length>400) S.trace.shift();
+  S.sweeps++;
+}
+
+/* ---------- DOM: molten strip ---------- */
+const stripEl=document.getElementById('strip');
+function chipHTML(w,oov){ return '<span class="chip'+(oov?' oov':'')+'">'+w+'</span>'; }
+function buildStrip(){
+  let html='';
+  S.prefixW.forEach((w,i)=>html+=chipHTML(w,S.prefixO[i]));
+  for(let i=0;i<S.W;i++){
+    html+='<div class="slot" data-slot="'+i+'"><span class="idx">'+(i+1)+'</span>'+
+          '<span class="main">·</span><div class="ghosts"></div></div>';
+  }
+  S.suffixW.forEach((w,i)=>html+=chipHTML(w,S.suffixO[i]));
+  stripEl.innerHTML=html;
+}
+stripEl.addEventListener('click',e=>{
+  const slot=e.target.closest('.slot'); if(!slot) return;
+  const i=+slot.dataset.slot;
+  if(S.pins[i]>=0){ S.pins[i]=-1; resetPublish(); note('slot '+(i+1)+' released to molten.'); return; }
+  let tok;
+  if(e.target.classList.contains('ghost')) tok=+e.target.dataset.tok;
+  else { tok=modeOf(i).m; }
+  pinSlot(i,tok);
+});
+function pinSlot(i,tok){
+  S.pins[i]=tok; S.chains.forEach(st=>st[i]=tok); resetPublish();
+  note('pinned “'+vocab[tok]+'” at slot '+(i+1)+' — chains re-relaxing around it (no restart).');
+}
+function modeOf(i){
+  const h=S.hist[i]; let m=0,mv=-1;
+  for(let w=0;w<N;w++) if(h[w]>mv){ mv=h[w]; m=w; }
+  return {m, p: S.histT[i]>0? mv/S.histT[i] : 0};
+}
+function topK(i,k,skip){
+  const h=S.hist[i], out=[];
+  for(let w=0;w<N;w++){ const v=h[w]; if(v<=0||w===skip) continue;
+    out.push([w,v]); }
+  out.sort((a,b)=>b[1]-a[1]);
+  return out.slice(0,k).map(([w,v])=>[w, S.histT[i]>0? v/S.histT[i]:0]);
+}
+function entropyOf(i){
+  const h=S.hist[i], T=S.histT[i]; if(T<=0) return 0;
+  let e=0; for(let w=0;w<N;w++){ const p=h[w]/T; if(p>1e-9) e-=p*Math.log(p); }
+  return e;
+}
+
+/* ---------- render ---------- */
+const $=id=>document.getElementById(id);
+function fmt(x,d){ return Number.isFinite(x)? x.toFixed(d) : '—'; }
+function renderStrip(){
+  const slots=stripEl.querySelectorAll('.slot');
+  slots.forEach(slot=>{
+    const i=+slot.dataset.slot;
+    const main=slot.querySelector('.main'), gh=slot.querySelector('.ghosts');
+    if(S.pins[i]>=0){
+      slot.classList.add('pinned'); main.textContent=vocab[S.pins[i]];
+      gh.innerHTML=''; return;
+    }
+    slot.classList.remove('pinned');
+    const {m,p}=modeOf(i), ent=entropyOf(i), fl=S.flip[i];
+    main.textContent=vocab[m];
+    main.style.opacity=(0.45+0.55*p).toFixed(2);
+    main.style.filter='blur('+Math.min(2.5,ent*0.75).toFixed(2)+'px)';
+    const g=Math.min(1,fl/0.6);
+    main.style.textShadow='0 0 '+(g*16).toFixed(0)+'px rgba(255,180,60,'+(g*0.95).toFixed(2)+')';
+    main.style.color=g>0.35?'var(--gold-bright)':'var(--ink)';
+    gh.innerHTML=topK(i,4,m).map(([w,pp])=>
+      '<span class="ghost" data-tok="'+w+'" style="opacity:'+(0.3+0.7*Math.min(1,pp*2.4)).toFixed(2)+'">'+
+      vocab[w]+' <span style="color:var(--faint)">'+(pp*100).toFixed(0)+'%</span></span>').join('');
+  });
+}
+function renderPub(){
+  const el=$('pub');
+  if(!S.bestSeq){ el.textContent='relaxing…'; $('pubMeta').textContent=''; return; }
+  el.innerHTML='<span class="clamped">'+S.prefixW.join(' ')+'</span> <span class="free">'+
+    S.bestSeq.map(t=>vocab[t]).join(' ')+'</span> <span class="clamped">'+S.suffixW.join(' ')+'</span>';
+  $('pubMeta').textContent='E = '+fmt(S.bestE,2)+' nats (lower is better)';
+}
+function renderEns(){
+  let h='<table><tr><th>chain</th>';
+  for(let i=0;i<S.W;i++) h+='<th>'+(i+1)+'</th>';
+  h+='</tr>';
+  const modes=[]; for(let i=0;i<S.W;i++) modes.push(modeOf(i).m);
+  S.chains.forEach((st,c)=>{
+    h+='<tr><td class="ch">'+(c+1)+'</td>';
+    for(let i=0;i<S.W;i++)
+      h+='<td class="'+(st[i]===modes[i]?'':'dis')+'">'+vocab[st[i]]+'</td>';
+    h+='</tr>';
+  });
+  $('ens').innerHTML=h+'</table>';
+}
+function renderBars(){
+  let h='';
+  for(let i=0;i<S.W;i++){
+    const v=S.flip[i], pct=Math.min(1,v/0.8)*100;
+    h+='<div class="barcol"><span class="barv">'+v.toFixed(2)+'</span>'+
+       '<div class="bar" style="height:'+pct.toFixed(0)+'%"></div>'+
+       '<span class="barn">'+(i+1)+'</span></div>';
+  }
+  $('bars').innerHTML=h;
+}
+function renderTrace(){
+  const cv=$('etrace'), ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(S.trace.length<2) return;
+  let lo=Infinity,hi=-Infinity;
+  S.trace.forEach(v=>{ if(v<lo)lo=v; if(v>hi)hi=v; });
+  if(hi-lo<1e-6){ lo-=0.5; hi+=0.5; }
+  ctx.strokeStyle='#e8a33d'; ctx.lineWidth=1.4; ctx.beginPath();
+  S.trace.forEach((v,i)=>{
+    const x=i/(S.trace.length-1)*(cv.width-8)+4;
+    const y=4+(v-lo)/(hi-lo)*(cv.height-8);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.stroke();
+  ctx.fillStyle='#5a5245'; ctx.font='9px monospace';
+  ctx.fillText(hi.toFixed(1),4,10); ctx.fillText(lo.toFixed(1),4,cv.height-3);
+}
+function renderStats(){
+  $('stK').textContent=S.K;
+  $('stSweeps').textContent=S.sweeps;
+  $('stBeta').textContent=fmt(S.beta,2);
+  $('stBest').textContent=fmt(S.bestE===Infinity?NaN:S.bestE,1);
+  let fsum=0; for(let i=0;i<S.W;i++) fsum+=S.flip[i];
+  const avgF=fsum/S.W;
+  const settled=avgF<0.02&&S.sweeps>40;
+  $('statusTxt').textContent=settled?'SETTLED':'RELAXING';
+  $('statusDot').classList.toggle('settled',settled);
+  const dE=S.meanE-S.prevMeanE;
+  const mde=$('mDE'); mde.textContent=(Number.isFinite(dE)?(dE>0?'+':'')+dE.toFixed(2):'—');
+  mde.className='val '+(dE<0?'g':'');
+  $('mFlip').textContent=fmt(avgF,3);
+  let freeSlots=0; for(let i=0;i<S.W;i++) if(S.pins[i]<0) freeSlots++;
+  $('mUps').textContent=(freeSlots*S.K*S.sps).toLocaleString();
+  const per=new Set(); let dsum=0;
+  for(let i=0;i<S.W;i++){ per.clear(); S.chains.forEach(st=>per.add(st[i])); dsum+=per.size; }
+  $('mDiv').textContent=fmt(dsum/S.W,1);
+  $('mV').textContent=N;
+}
+function renderAll(){ renderStrip(); renderPub(); renderEns(); renderBars(); renderTrace(); renderStats(); }
+
+/* ---------- loops ---------- */
+let acc=0;
+setInterval(()=>{
+  if(S.annealTarget!==null){
+    S.beta=Math.min(S.annealTarget,S.beta+0.025);
+    $('rBeta').value=S.beta; $('vBeta').textContent=S.beta.toFixed(2);
+    if(S.beta>=S.annealTarget) S.annealTarget=null;
+  }
+  acc+=S.sps*0.06;
+  const n=Math.floor(acc); acc-=n;
+  for(let k=0;k<Math.min(n,12);k++) sweepAll();
+},60);
+setInterval(renderAll,90);
+
+/* ---------- controls ---------- */
+$('btnApply').onclick=()=>setPrompt($('inPrefix').value,$('inSuffix').value);
+$('inPrefix').addEventListener('keydown',e=>{ if(e.key==='Enter')$('btnApply').click(); });
+$('inSuffix').addEventListener('keydown',e=>{ if(e.key==='Enter')$('btnApply').click(); });
+$('rBeta').oninput=e=>{ S.beta=+e.target.value; S.annealTarget=null; $('vBeta').textContent=S.beta.toFixed(2); };
+$('rK').oninput=e=>{ setK(+e.target.value); $('vK').textContent=S.K; };
+$('rSps').oninput=e=>{ S.sps=+e.target.value; $('vSps').textContent=S.sps; };
+$('rW').oninput=e=>{ setWindow(+e.target.value); $('vW').textContent=S.W; };
+$('btnShake').onclick=()=>{
+  const prev=+$('rBeta').value; S.annealTarget=null; S.beta=0.3;
+  note('heat pulse — β=0.30 for 1 s, then back to '+prev.toFixed(2)+'. watch the flip bars spike.');
+  setTimeout(()=>{ S.beta=prev; },1000);
+};
+$('btnAnneal').onclick=()=>{
+  S.annealTarget=2.8;
+  note('annealing — β ramps to 2.80. watch the words crystallize and flip rates fall.');
+};
+function clearPins(){ S.pins.fill(-1); }
+$('presetA').onclick=()=>{ clearPins(); setPrompt('the future of ai is','.');
+  setWindow(S.W); note('A · prompt clamped, ending open — free relaxation.'); };
+$('presetB').onclick=()=>{ clearPins(); setPrompt('the future of ai is','we build together .');
+  setWindow(S.W); note('B · ending clamped — information now flows backward through the window.'); };
+$('presetC').onclick=()=>{
+  const i=Math.floor(S.W/2); pinSlot(i,tid.get('energy'));
+  note('C · pinned “energy” at slot '+(i+1)+' — neighbors re-route through its bigrams. nothing restarted.'); };
+$('presetD').onclick=()=>{ clearPins(); setPrompt('.','and we build together .');
+  setWindow(S.W); note('D · empty prompt, clamped ending — the sentence grows backward from its conclusion.'); };
+
+/* ---------- vocab list ---------- */
+$('vocabList').innerHTML=vocab.slice(0,N-1).sort()
+  .map(w=>'<span>'+w+'</span>').join(' ');
+
+/* ---------- boot ---------- */
+setPrompt('the future of ai is','we build together .');
+setWindow(10);
+window.RT=S; // instrumentation handle (debug/verification)
+</script>
