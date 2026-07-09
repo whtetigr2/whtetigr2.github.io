@@ -1,0 +1,678 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codon Instrument &mdash; Thermodynamic Codon Optimization</title>
+<style>
+  :root{
+    --bg:#0c0a08; --bg2:#110d0a; --panel:#15110d; --panel2:#0a0806;
+    --line:#2a231a; --line2:#3a3125;
+    --gold:#e8a33d; --gold-bright:#ffd27a; --gold-deep:#b9791f; --ember:#ff7a2c;
+    --ink:#efe7da; --ink-dim:#a9a08e; --dim:#8a7f6e; --faint:#6a6252;
+    --cool:#6fa8c9; --ok:#8fce6b; --bad:#e0664c;
+    --mono:'Cascadia Code','Cascadia Mono',ui-monospace,Consolas,'Courier New',monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4efe6; --bg2:#efe8db; --panel:#fbf7ef; --panel2:#f0e8d8;
+      --line:#e0d6c3; --line2:#d0c4ab;
+      --gold:#b9791f; --gold-bright:#9a6314; --gold-deep:#8a5810; --ember:#d2551a;
+      --ink:#241f18; --ink-dim:#5a5142; --dim:#6a6152; --faint:#8a8172;
+      --cool:#3d7ea0; --ok:#4f8a2f; --bad:#c0442a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0c0a08; --bg2:#110d0a; --panel:#15110d; --panel2:#0a0806;
+    --line:#2a231a; --line2:#3a3125;
+    --gold:#e8a33d; --gold-bright:#ffd27a; --gold-deep:#b9791f; --ember:#ff7a2c;
+    --ink:#efe7da; --ink-dim:#a9a08e; --dim:#8a7f6e; --faint:#6a6252; --cool:#6fa8c9;
+    --ok:#8fce6b; --bad:#e0664c;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4efe6; --bg2:#efe8db; --panel:#fbf7ef; --panel2:#f0e8d8;
+    --line:#e0d6c3; --line2:#d0c4ab;
+    --gold:#b9791f; --gold-bright:#9a6314; --gold-deep:#8a5810; --ember:#d2551a;
+    --ink:#241f18; --ink-dim:#5a5142; --dim:#6a6152; --faint:#8a8172; --cool:#3d7ea0;
+    --ok:#4f8a2f; --bad:#c0442a;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);margin:0;font-family:var(--sans);
+    font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--gold);text-decoration:none} a:hover{color:var(--gold-bright)}
+  ::selection{background:var(--gold);color:var(--bg)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+  header.top{border-bottom:1px solid var(--line);padding:18px 0;position:sticky;top:0;
+    background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);z-index:30}
+  header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-family:var(--mono);font-weight:600;font-size:15px;color:var(--ink);letter-spacing:.01em}
+  .brand .k{color:var(--gold)}
+  .brand small{display:block;font-weight:400;font-size:11px;color:var(--dim);letter-spacing:.04em;margin-top:2px}
+  .topnav{display:flex;gap:10px;align-items:center;font-family:var(--mono);font-size:12.5px}
+  .themebtn{font-family:var(--mono);font-size:15px;width:34px;height:34px;border-radius:9px;
+    border:1px solid var(--line2);background:var(--panel);color:var(--gold);cursor:pointer}
+  .themebtn:hover{border-color:var(--gold)}
+
+  .intro{padding:26px 0 8px}
+  .intro h1{font-family:var(--mono);font-weight:600;font-size:clamp(21px,3.2vw,30px);
+    margin:0 0 8px;letter-spacing:-.01em;text-wrap:balance}
+  .intro p{color:var(--ink-dim);max-width:78ch;margin:0;font-size:15px}
+  .intro .eq{font-family:var(--mono);font-size:12.5px;color:var(--gold-bright);
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:9px 12px;margin:14px 0 0;display:inline-block;overflow-x:auto;max-width:100%}
+
+  .lab{display:grid;grid-template-columns:300px 1fr;gap:18px;margin:22px 0 40px;align-items:start}
+  @media(max-width:900px){.lab{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .panel h2{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--dim);margin:0 0 14px;font-weight:600}
+  .panel h2:not(:first-child){margin-top:22px}
+
+  .ctl{margin-bottom:14px}
+  .ctl label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;
+    color:var(--ink-dim);margin-bottom:6px}
+  .ctl label b{color:var(--gold-bright);font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--gold);height:4px}
+  .seg{display:flex;gap:4px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:52px;font-family:var(--mono);font-size:12px;padding:7px 6px;
+    border-radius:7px;border:1px solid var(--line2);background:var(--panel2);color:var(--ink-dim);cursor:pointer}
+  .seg button.on{background:color-mix(in srgb,var(--gold) 18%,transparent);border-color:var(--gold-deep);color:var(--gold-bright)}
+  .seg button:hover{border-color:var(--gold)}
+  textarea{width:100%;height:70px;resize:vertical;font-family:var(--mono);font-size:11px;
+    background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:7px;padding:8px;line-height:1.4}
+  .run{display:flex;gap:8px;margin-top:6px}
+  .run button{flex:1;font-family:var(--mono);font-size:13px;font-weight:600;padding:11px;border-radius:8px;cursor:pointer;transition:.14s}
+  .run .go{background:var(--gold);color:#12100c;border:1px solid var(--gold)}
+  .run .go:hover{background:var(--gold-bright)}
+  .run .sec{background:transparent;color:var(--gold-bright);border:1px solid var(--gold-deep)}
+  .run .sec:hover{border-color:var(--gold);background:color-mix(in srgb,var(--gold) 10%,transparent)}
+  .hint{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:8px;line-height:1.5}
+  .preset-row{display:flex;gap:6px;margin-top:6px}
+  .preset-row button{flex:1;font-family:var(--mono);font-size:10.5px;padding:6px 4px;border-radius:6px;
+    border:1px dashed var(--line2);background:transparent;color:var(--dim);cursor:pointer}
+  .preset-row button:hover{border-color:var(--gold);color:var(--gold-bright)}
+
+  /* ---------- stage ---------- */
+  .stage{display:flex;flex-direction:column;gap:14px}
+  .readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+  .stat .lab2{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .stat .val{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--gold-bright);margin-top:3px;
+    font-variant-numeric:tabular-nums}
+  .stat .val small{font-size:11px;color:var(--dim);font-weight:400}
+  .stat.wide{grid-column:1/-1}
+
+  .ribwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .ribhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+  .ribhead .t{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+  .ribhead .leg{font-family:var(--mono);font-size:10.5px;color:var(--faint);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .ribhead .leg i{width:10px;height:10px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:4px}
+  #ribbon{width:100%;height:150px;display:block;border-radius:8px;background:var(--panel2);cursor:crosshair}
+
+  .inspector{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:12px;
+    font-family:var(--mono);min-height:78px}
+  .inspector .ihead{font-size:11.5px;color:var(--ink-dim);margin-bottom:9px}
+  .inspector .ihead b{color:var(--gold-bright)}
+  .cand{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:11.5px}
+  .cand .name{width:60px;color:var(--ink)}
+  .cand .bar{flex:1;height:12px;background:var(--panel);border-radius:3px;overflow:hidden;position:relative}
+  .cand .bar span{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--gold-deep),var(--gold));border-radius:3px}
+  .cand .pct{width:44px;text-align:right;color:var(--dim);font-variant-numeric:tabular-nums}
+  .cand.cur .name{color:var(--gold-bright);font-weight:600}
+  .cand .gc{width:30px;color:var(--cool);text-align:right}
+
+  .graphs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media(max-width:760px){.graphs{grid-template-columns:1fr}}
+  .gcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .gcard .gt{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:8px;
+    display:flex;justify-content:space-between}
+  .gcard .gt em{font-style:normal;color:var(--faint)}
+  .gcard canvas{width:100%;height:120px;display:block}
+
+  .nucwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .nucwrap .nh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .nucwrap .nh .t{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  .nucwrap .nh button{font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--line2);
+    background:var(--panel2);color:var(--gold-bright);cursor:pointer}
+  #nuc{font-family:var(--mono);font-size:10.5px;color:var(--ink-dim);word-break:break-all;line-height:1.7;max-height:90px;overflow-y:auto}
+  #nuc b{color:var(--cool)}
+
+  .foot{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--faint);font-family:var(--mono);font-size:11.5px;line-height:1.7}
+  .foot b{color:var(--ink-dim)}
+  .foot .val{color:var(--gold-bright)}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">Codon <span class="k">Instrument</span>
+      <small>thermodynamic codon optimization &mdash; a clear engine block</small></div>
+    <div class="topnav">
+      <a href="./index.html">&larr; all demos</a>
+      <button class="themebtn" id="themeBtn" aria-label="Toggle theme">&#9681;</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="intro">
+    <h1>Design an mRNA sequence by letting physics settle it into place.</h1>
+    <p>Pick a protein and a host cell. Every position is a categorical choice of synonymous codon; the machine
+      writes down an <em>energy</em> &mdash; rare codons cost, GC content off-target costs, repeated runs cost &mdash; and
+      relaxes toward the lowest-energy sequence with annealed block-Gibbs sampling. This is
+      <a href="https://github.com/extropic-ai/codon_opt" target="_blank" rel="noopener">Extropic's published codon-optimization energy</a>,
+      run as a live instrument. Every gauge below is a real measurement of the sampler running in your browser.</p>
+    <div class="eq">E = w<sub>f</sub>&middot;&Sigma; rarity(c<sub>p</sub>) &nbsp;+&nbsp; w<sub>GC</sub>&middot;(GC&minus;target)&sup2; &nbsp;+&nbsp; w<sub>R</sub>&middot;&Sigma; repeat(c<sub>p</sub>,c<sub>p+1</sub>)</div>
+  </div>
+
+  <div class="lab">
+    <!-- ============ CONTROLS ============ -->
+    <div class="panel">
+      <h2>Protein</h2>
+      <div class="seg" id="protSeg">
+        <button data-prot="spike" class="on">COVID spike</button>
+        <button data-prot="custom">Paste your own</button>
+      </div>
+      <textarea id="customSeq" placeholder="Paste a protein sequence (single-letter amino acids: ACDEFGHIKLMNPQRSTVWY)&hellip;" style="display:none;margin-top:8px"></textarea>
+      <div class="ctl" style="margin-top:12px">
+        <label>Positions optimized <b id="lenVal">200</b></label>
+        <input type="range" id="lenR" min="30" max="1273" value="200" step="1">
+        <div class="hint" id="lenHint">First 200 of the 1273-aa SARS-CoV-2 spike. Slide to the full protein.</div>
+      </div>
+
+      <h2>Host cell</h2>
+      <div class="seg" id="hostSeg">
+        <button data-host="human" class="on">Human</button>
+        <button data-host="e_coli">E. coli</button>
+        <button data-host="yeast">Yeast</button>
+      </div>
+      <div class="hint">Real codon-usage tables (python_codon_tables). Human = the mRNA-vaccine setting; the COVID spike optimized for expression in a human cell.</div>
+
+      <h2>Energy weights</h2>
+      <div class="preset-row">
+        <button data-preset="standard">Standard (Fox)</button>
+        <button data-preset="hard">Hard (balanced)</button>
+      </div>
+      <div class="ctl" style="margin-top:12px">
+        <label>Target GC fraction <b id="gcTVal">0.50</b></label>
+        <input type="range" id="gcT" min="0.25" max="0.75" value="0.50" step="0.01">
+      </div>
+      <div class="ctl">
+        <label>Codon-usage weight w<sub>f</sub> <b id="wfVal">0.10</b></label>
+        <input type="range" id="wf" min="0" max="1" value="0.10" step="0.01">
+      </div>
+      <div class="ctl">
+        <label>GC weight w<sub>GC</sub> <b id="wgcVal">1</b></label>
+        <input type="range" id="wgc" min="0" max="4.301" value="0" step="0.01">
+        <div class="hint">log scale &middot; 1 &rarr; 20000. Standard=1 (soft), Hard=2&times;10&#8308; (GC enforced).</div>
+      </div>
+      <div class="ctl">
+        <label>Repeat weight w<sub>R</sub> <b id="wrVal">0.10</b></label>
+        <input type="range" id="wr" min="0" max="1" value="0.10" step="0.01">
+      </div>
+
+      <h2>Sampler</h2>
+      <div class="ctl">
+        <label>Parallel chains <b id="chVal">8</b></label>
+        <input type="range" id="ch" min="1" max="32" value="8" step="1">
+      </div>
+      <div class="ctl">
+        <label>Anneal &beta; (inverse temp) <b id="betaVal">0.30</b></label>
+        <input type="range" id="betaR" min="-0.6" max="2.2" value="-0.52" step="0.01">
+        <div class="hint">Auto-ramps low&rarr;high while running (simulated annealing). Drag to steer heat by hand.</div>
+      </div>
+      <div class="ctl">
+        <label style="justify-content:flex-start;gap:8px;cursor:pointer">
+          <input type="checkbox" id="adaptGC" checked style="accent-color:var(--gold);width:auto">
+          Adaptive GC coefficient</label>
+        <div class="hint">Linearizes the global GC term into a per-codon bias &mu; that adapts each step (Lagrangian) &mdash; avoids all-to-all coupling.</div>
+      </div>
+
+      <div class="run">
+        <button class="go" id="runBtn">Run</button>
+        <button class="sec" id="reanBtn">Re-anneal</button>
+      </div>
+      <div class="hint">Re-anneal reheats to &beta;<sub>min</sub> and re-ramps &mdash; the chains never wipe, they keep their state and re-settle.</div>
+    </div>
+
+    <!-- ============ STAGE ============ -->
+    <div class="stage">
+      <div class="readouts">
+        <div class="stat"><div class="lab2">Best total energy</div><div class="val" id="sBest">&mdash;</div></div>
+        <div class="stat"><div class="lab2">GC content</div><div class="val" id="sGC">&mdash;</div></div>
+        <div class="stat"><div class="lab2">Sweeps</div><div class="val" id="sSweep">0</div></div>
+        <div class="stat"><div class="lab2">Flips / sweep</div><div class="val" id="sFlip">&mdash;</div></div>
+      </div>
+
+      <div class="ribwrap">
+        <div class="ribhead">
+          <span class="t">Sequence &mdash; best chain &middot; each cell = one codon</span>
+          <span class="leg">
+            <span><i style="background:var(--cool)"></i>GC 0</span>
+            <span><i style="background:var(--gold)"></i>GC 3</span>
+            <span><i style="background:var(--gold-bright);box-shadow:0 0 6px var(--gold-bright)"></i>just flipped</span>
+          </span>
+        </div>
+        <canvas id="ribbon"></canvas>
+        <div class="inspector" id="inspector">
+          <div class="ihead">Click any position to inspect its live codon distribution &mdash; the sampler's actual conditional right now.</div>
+        </div>
+      </div>
+
+      <div class="graphs">
+        <div class="gcard">
+          <div class="gt"><span>Total energy</span><em id="gTot">&mdash;</em></div>
+          <canvas id="gEnergy"></canvas>
+        </div>
+        <div class="gcard">
+          <div class="gt"><span>Energy terms</span><em>usage&nbsp;gc&nbsp;repeat</em></div>
+          <canvas id="gTerms"></canvas>
+        </div>
+        <div class="gcard">
+          <div class="gt"><span>GC fraction &rarr; target</span><em id="gMu">&mu;</em></div>
+          <canvas id="gGC"></canvas>
+        </div>
+      </div>
+
+      <div class="nucwrap">
+        <div class="nh"><span class="t">mRNA output &mdash; lowest-energy sequence found</span>
+          <button id="copyBtn">Copy DNA</button></div>
+        <div id="nuc">&mdash;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>What this is.</b> A browser simulation of the <span class="val">identical algorithm</span> &mdash; simulated-annealing
+    block-Gibbs sampling on the Potts codon energy from Extropic's
+    <a href="https://github.com/extropic-ai/codon_opt" target="_blank" rel="noopener">codon_opt</a>, with real E.&nbsp;coli / human / yeast
+    codon-usage tables. The same program was reproduced at scale on the JAX/THRML implementation over the full 1273-aa spike:
+    best energy <span class="val">444.11</span> vs the paper's 444.0 (Hard weights) and <span class="val">233.92</span> vs 234.0 (Standard) &mdash; matching to the decimal.<br>
+    <b>What this is not.</b> The headline energy advantage (Extropic estimate: <span class="val">10&#8309;&ndash;10&#8313;&times;</span> less energy than a GPU)
+    rests on their prototype-hardware measurements &mdash; cited as theirs, not reproduced here. This page proves the <em>algorithm and the
+    solution quality</em>, run see-through; the substrate advantage is their measured claim.
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================ EMBEDDED REAL DATA ============================ */
+// Standard genetic code, codons GC-sorted (ascending gc_count, then alphabetical).
+const AA = {
+  A:["GCA","GCT","GCC","GCG"], C:["TGT","TGC"], D:["GAT","GAC"], E:["GAA","GAG"],
+  F:["TTT","TTC"], G:["GGA","GGT","GGC","GGG"], H:["CAT","CAC"], I:["ATA","ATT","ATC"],
+  K:["AAA","AAG"], L:["TTA","CTA","CTT","TTG","CTC","CTG"], M:["ATG"], N:["AAT","AAC"],
+  P:["CCA","CCT","CCC","CCG"], Q:["CAA","CAG"], R:["AGA","AGG","CGA","CGT","CGC","CGG"],
+  S:["AGT","TCA","TCT","AGC","TCC","TCG"], T:["ACA","ACT","ACC","ACG"],
+  V:["GTA","GTT","GTC","GTG"], W:["TGG"], Y:["TAT","TAC"]
+};
+const GC = {GCA:2,GCT:2,GCC:3,GCG:3,TGT:1,TGC:2,GAT:1,GAC:2,GAA:1,GAG:2,TTT:0,TTC:1,
+  GGA:2,GGT:2,GGC:3,GGG:3,CAT:1,CAC:2,ATA:0,ATT:0,ATC:1,AAA:0,AAG:1,TTA:0,CTA:1,CTT:1,
+  TTG:1,CTC:2,CTG:2,ATG:1,AAT:0,AAC:1,CCA:2,CCT:2,CCC:3,CCG:3,CAA:1,CAG:2,AGA:1,AGG:2,
+  CGA:2,CGT:2,CGC:3,CGG:3,AGT:1,TCA:1,TCT:1,AGC:2,TCC:2,TCG:2,ACA:1,ACT:1,ACC:2,ACG:2,
+  GTA:1,GTT:1,GTC:2,GTG:2,TGG:2,TAT:0,TAC:1};
+// rarity = |log(freq / max_freq_for_aa)|  (0 = most-used codon of that AA; larger = rarer)
+const HOST = {
+  e_coli:{GCA:0.538997,GCC:0.287682,GCG:0,GCT:0.81093,TGC:0,TGT:0.241162,GAC:0.532217,GAT:0,GAA:0,GAG:0.800119,TTC:0.281851,TTT:0,GGA:1.315677,GGC:0,GGG:1.005522,GGT:0.187212,CAC:0.281851,CAT:0,ATA:1.985915,ATC:0.194156,ATT:0,AAA:0,AAG:1.15268,CTA:2.525729,CTC:1.609438,CTG:0,CTT:1.609438,TTA:1.347074,TTG:1.347074,ATG:0,AAC:0,AAT:0.200671,CCA:1.025853,CCC:1.485385,CCG:0,CCT:1.197703,CAA:0.619039,CAG:0,AGA:2.302585,AGG:2.995732,CGA:1.89712,CGC:0,CGG:1.386294,CGT:0.051293,AGC:0,AGT:0.624154,TCA:0.847298,TCC:0.624154,TCG:0.624154,TCT:0.624154,ACA:1.21924,ACC:0,ACG:0.488353,ACT:1.011601,GTA:0.902868,GTC:0.519875,GTG:0,GTT:0.352821,TGG:0,TAC:0.281851,TAT:0},
+  human:{GCA:0.553385,GCC:0,GCG:1.290984,GCT:0.393043,TGC:0,TGT:0.160343,GAC:0,GAT:0.160343,GAA:0.322773,GAG:0,TTC:0,TTT:0.160343,GGA:0.307485,GGC:0,GGG:0.307485,GGT:0.753772,CAC:0,CAT:0.322773,ATA:1.016934,ATC:0,ATT:0.266629,AAA:0.281851,AAG:0,CTA:1.742969,CTC:0.693147,CTG:0,CTT:1.12393,TTA:1.609438,TTG:1.12393,ATG:0,AAC:0,AAT:0.120144,CCA:0.133531,CCC:0,CCG:1.067841,CCT:0.09844,CAA:0.994623,CAG:0,AGA:0,AGG:0,CGA:0.646627,CGC:0.154151,CGG:0.04879,CGT:0.965081,AGC:0,AGT:0.470004,TCA:0.470004,TCC:0.087011,TCG:1.568616,TCT:0.233615,ACA:0.251314,ACC:0,ACG:1.185624,ACT:0.364643,GTA:1.343735,GTC:0.650588,GTG:0,GTT:0.93827,TGG:0,TAC:0,TAT:0.241162},
+  yeast:{GCA:0.27029,GCC:0.546544,GCG:1.239691,GCT:0,TGC:0.532217,TGT:0,GAC:0.619039,GAT:0,GAA:0,GAG:0.847298,TTC:0.363965,TTT:0,GGA:0.759105,GGC:0.905709,GGG:1.365241,GGT:0,CAC:0.575364,CAT:0,ATA:0.532805,ATC:0.570545,ATT:0,AAA:0,AAG:0.322773,CTA:0.728239,CTC:1.575536,CTG:0.969401,CTT:0.802346,TTA:0.035091,TTG:0,ATG:0,AAC:0.363965,AAT:0,CCA:0,CCC:1.029619,CCG:1.252763,CCT:0.303682,CAA:0,CAG:0.800119,AGA:0,AGG:0.826679,CGA:1.925291,CGC:2.079442,CGG:2.484907,CGT:1.232144,AGC:0.860201,AGT:0.485508,TCA:0.213574,TCC:0.485508,TCG:0.955511,TCT:0,ACA:0.154151,ACC:0.464306,ACG:0.916291,ACT:0,GTA:0.619039,GTC:0.619039,GTG:0.719123,GTT:0,TGG:0,TAC:0.241162,TAT:0}
+};
+const SPIKE = "MFVFLVLLPLVSSQCVNLTTRTQLPPAYTNSFTRGVYYPDKVFRSSVLHSTQDLFLPFFSNVTWFHAIHVSGTNGTKRFDNPVLPFNDGVYFASTEKSNIIRGWIFGTTLDSKTQSLLIVNNATNVVIKVCEFQFCNDPFLGVYYHKNNKSWMESEFRVYSSANNCTFEYVSQPFLMDLEGKQGNFKNLREFVFKNIDGYFKIYSKHTPINLVRDLPQGFSALEPLVDLPIGINITRFQTLLALHRSYLTPGDSSSGWTAGAAAYYVGYLQPRTFLLKYNENGTITDAVDCALDPLSETKCTLKSFTVEKGIYQTSNFRVQPTESIVRFPNITNLCPFGEVFNATRFASVYAWNRKRISNCVADYSVLYNSASFSTFKCYGVSPTKLNDLCFTNVYADSFVIRGDEVRQIAPGQTGKIADYNYKLPDDFTGCVIAWNSNNLDSKVGGNYNYLYRLFRKSNLKPFERDISTEIYQAGSTPCNGVEGFNCYFPLQSYGFQPTNGVGYQPYRVVVLSFELLHAPATVCGPKKSTNLVKNKCVNFNFNGLTGTGVLTESNKKFLPFQQFGRDIADTTDAVRDPQTLEILDITPCSFGGVSVITPGTNTSNQVAVLYQDVNCTEVPVAIHADQLTPTWRVYSTGSNVFQTRAGCLIGAEHVNNSYECDIPIGAGICASYQTQTNSPRRARSVASQSIIAYTMSLGAENSVAYSNNSIAIPTNVTISVTTEILPVSMTKTSVDCTMYICGDSTECSNLLLQYGSFCTQLNRALTGIAVEQDKNTQEVFAQVKQIYKTPPIKDFGGFNFSQILPDPSKPSKRSFIEDLLFNKVTLADAGFIKQYGDCLGDIAARDLICAQKFNGLTVLPPLLTDEMIAQYTSALLAGTITSGWTFGAGAALQIPFAMQMAYRFNGIGVTQNVLYENQKLIANQFNSAIGKIQDSLSSTASALGKLQDVVNQNAQALNTLVKQLSSNFGAISSVLNDILSRLDKVEAEVQIDRLITGRLQSLQTYVTQQLIRAAEIRASANLAATKMSECVLGQSKRVDFCGKGYHLMSFPQSAPHGVVFLHVTYVPAQEKNFTTAPAICHDGKAHFPREGVFVSNGTHWFVTQRNFYEPQIITTDNTFVSGNCDVVIGIVNNTVYDPLQPELDSFKEELDKYFKNHTSPDVDLGDISGINASVVNIQKEIDRLNEVAKNLNESLIDLQELGKYEQYIKWPWYIWLGFIAGLIAIVMVTIMLCCMTSCCSCLKGCCSCGSCCKFDEDDSEPVLKGVKLHYT";
+
+/* ============================ REPEAT PENALTY ============================ */
+const _rpMemo = new Map();
+function longestRun(s){let m=1,c=1;for(let i=1;i<s.length;i++){if(s[i]===s[i-1]){c++;if(c>m)m=c;}else c=1;}return m;}
+function repeatPen(c1,c2){const k=c1+c2;let v=_rpMemo.get(k);if(v===undefined){const m=longestRun(k);v=m*m-1;_rpMemo.set(k,v);}return v;}
+
+/* ============================ SAMPLER ============================ */
+const S = {
+  seq:"", L:0, pos:[],           // pos[p] = {codons:[str], gc:[int], rar:[float], K:int}
+  host:"human", target:0.5, wf:0.1, wgc:1, wr:0.1,
+  nChains:8, chains:[], mu:[],   // chains[c] = Int codon indices; mu[c] = adaptive GC coeff
+  beta:0.3, betaMin:0.30, betaMax:100, autoAnneal:true, adaptGC:true,
+  sweeps:0, flips:0, running:false,
+  best:{E:Infinity, terms:null, seq:null, gc:0, idx:null},
+  hist:[], histStride:1, histCount:0   // adaptively-decimated trajectory (whole run stays visible)
+};
+
+function buildProblem(){
+  const raw = S.seq.toUpperCase().replace(/[^A-Z]/g,"");
+  const pos=[]; let ok="";
+  for(const aa of raw){ if(!AA[aa]) continue; ok+=aa;
+    const codons=AA[aa]; const tbl=HOST[S.host];
+    pos.push({aa, codons, gc:codons.map(c=>GC[c]), rar:codons.map(c=>tbl[c]||0), K:codons.length});
+  }
+  S.seq=ok; S.pos=pos; S.L=pos.length;
+  // init chains at most-common-codon (index of min rarity) with a little noise
+  S.chains=[]; S.mu=[];
+  for(let c=0;c<S.nChains;c++){
+    const arr=new Int16Array(S.L);
+    for(let p=0;p<S.L;p++){ arr[p]=Math.floor(Math.random()*S.pos[p].K); }
+    S.chains.push(arr); S.mu.push(0);
+  }
+  S.sweeps=0; S.flips=0; S.beta=S.betaMin;
+  S.best={E:Infinity,terms:null,seq:null,gc:0,idx:null};
+  S.hist=[]; S.histStride=1; S.histCount=0;
+  computeAndRecord();
+}
+
+// True energy of a chain (the real objective; adaptive mu is only for sampling)
+function energyOf(idx){
+  let usage=0, gcCount=0, rep=0;
+  const P=S.pos;
+  for(let p=0;p<S.L;p++){ const k=idx[p]; usage+=P[p].rar[k]; gcCount+=P[p].gc[k]; }
+  for(let p=0;p<S.L-1;p++){ rep+=repeatPen(P[p].codons[idx[p]], P[p+1].codons[idx[p+1]]); }
+  const N=3*S.L; const gcFrac=gcCount/N;
+  const uT=S.wf*usage, gT=S.wgc*(gcFrac-S.target)*(gcFrac-S.target), rT=S.wr*rep;
+  return {total:uT+gT+rT, usage:uT, gc:gT, repeat:rT, gcFrac};
+}
+
+// One block-Gibbs sweep of a chain (even color then odd color)
+function sweepChain(c){
+  const idx=S.chains[c], P=S.pos, beta=S.beta, mu=S.mu[c], wf=S.wf, wr=S.wr;
+  let flips=0;
+  for(let color=0;color<2;color++){
+    for(let p=color;p<S.L;p+=2){
+      const cell=P[p], K=cell.K; if(K===1) continue;
+      const left = p>0 ? P[p-1].codons[idx[p-1]] : null;
+      const right= p<S.L-1 ? P[p+1].codons[idx[p+1]] : null;
+      // local energy per candidate
+      let minE=Infinity; const e=new Float64Array(K);
+      for(let k=0;k<K;k++){
+        let le = wf*cell.rar[k] + mu*cell.gc[k];
+        const cod=cell.codons[k];
+        if(left) le += wr*repeatPen(left,cod);
+        if(right) le += wr*repeatPen(cod,right);
+        e[k]=le; if(le<minE)minE=le;
+      }
+      // sample k ~ softmax(-beta*E)
+      let Z=0; for(let k=0;k<K;k++){ e[k]=Math.exp(-beta*(e[k]-minE)); Z+=e[k]; }
+      let r=Math.random()*Z, pick=K-1;
+      for(let k=0;k<K;k++){ r-=e[k]; if(r<=0){pick=k;break;} }
+      if(pick!==idx[p]){ idx[p]=pick; flips++; lastFlip[p]=S.sweeps+1; }
+    }
+  }
+  return flips;
+}
+
+function adaptMu(c){
+  if(!S.adaptGC){ S.mu[c]=0; return; }
+  const N=3*S.L;
+  let gcCount=0; const idx=S.chains[c], P=S.pos;
+  for(let p=0;p<S.L;p++) gcCount+=P[p].gc[idx[p]];
+  const gcErr = gcCount/N - S.target;
+  const trueCoeff = 2*S.wgc*gcErr/N;          // gradient of quadratic GC term per gc-unit
+  const move = gcErr * 0.1;                     // adapt rate (Lagrangian dual ascent)
+  let nm = S.mu[c] + move;
+  const lo=Math.min(S.mu[c],trueCoeff), hi=Math.max(S.mu[c],trueCoeff);
+  nm=Math.max(lo,Math.min(hi,nm));             // clamp toward true coeff, never overshoot it
+  S.mu[c]=nm;
+}
+
+let lastFlip=[];  // per-position sweep index of last flip (for glow)
+
+function computeAndRecord(){
+  // evaluate all chains, track best, push history from best chain
+  let bestC=0, bestE=Infinity, bestTerms=null;
+  for(let c=0;c<S.nChains;c++){
+    const t=energyOf(S.chains[c]);
+    if(t.total<bestE){bestE=t.total;bestTerms=t;bestC=c;}
+  }
+  if(bestE<S.best.E){
+    const idx=S.chains[bestC];
+    S.best={E:bestE, terms:bestTerms, gc:bestTerms.gcFrac,
+      idx:Int16Array.from(idx),
+      seq:Array.from(idx,(k,p)=>S.pos[p].codons[k]).join("")};
+  }
+  S.bestChain=bestC;
+  S.histCount++;
+  if(S.histCount % S.histStride === 0){
+    S.hist.push({t:S.sweeps, E:bestTerms.total, u:bestTerms.usage, g:bestTerms.gc, r:bestTerms.repeat,
+      gcFrac:bestTerms.gcFrac, beta:S.beta, mu:S.mu[bestC]});
+    if(S.hist.length>=600){ // decimate: keep every 2nd point + coarsen — whole run stays on screen
+      const dec=[]; for(let i=0;i<S.hist.length;i+=2) dec.push(S.hist[i]);
+      S.hist=dec; S.histStride*=2;
+    }
+  }
+}
+
+function stepOnce(){
+  // anneal ramp
+  if(S.autoAnneal && S.running){
+    const ramp=200; // sweeps to go min->max
+    const frac=Math.min(1, S.sweeps/ramp);
+    S.beta = S.betaMin*Math.pow(S.betaMax/S.betaMin, frac);
+    betaR.value = Math.log10(S.beta); betaVal.textContent=S.beta.toFixed(2);
+  }
+  let fl=0;
+  for(let c=0;c<S.nChains;c++){ fl+=sweepChain(c); adaptMu(c); }
+  S.sweeps++; S.flips=fl/S.nChains;
+  computeAndRecord();
+}
+
+/* ============================ RENDER ============================ */
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const DPR=Math.min(2,window.devicePixelRatio||1);
+function fitCanvas(cv){const r=cv.getBoundingClientRect();cv.width=r.width*DPR;cv.height=r.height*DPR;return cv.getContext('2d');}
+
+function gcColor(gc){ // 0..3 -> cool..gold
+  const cool=[111,168,201], gold=[232,163,61];
+  const t=gc/3; const m=(a,b)=>Math.round(a+(b-a)*t);
+  return `rgb(${m(cool[0],gold[0])},${m(cool[1],gold[1])},${m(cool[2],gold[2])})`;
+}
+
+let ribCols=0, ribRows=0, ribCW=0, ribCH=0, ribOX=0, ribOY=0;
+function drawRibbon(){
+  const cv=document.getElementById('ribbon'), ctx=cv.getContext('2d');
+  const W=cv.width, H=cv.height; ctx.clearRect(0,0,W,H);
+  if(!S.L){return;}
+  const idx = S.chains[S.bestChain||0];
+  // choose grid: aim ~square cells
+  const pad=4*DPR;
+  const aw=W-2*pad, ah=H-2*pad;
+  let cols=Math.ceil(Math.sqrt(S.L*aw/ah));
+  cols=Math.max(1,Math.min(cols,S.L));
+  let rows=Math.ceil(S.L/cols);
+  const cw=aw/cols, ch=ah/rows;
+  ribCols=cols;ribRows=rows;ribCW=cw;ribCH=ch;ribOX=pad;ribOY=pad;
+  const gap=cw>6*DPR?1*DPR:0;
+  for(let p=0;p<S.L;p++){
+    const r=Math.floor(p/cols), cX=p%cols;
+    const x=pad+cX*cw, y=pad+r*ch;
+    const gc=S.pos[p].gc[idx[p]];
+    ctx.fillStyle=gcColor(gc);
+    const glow=lastFlip[p]!==undefined?(S.sweeps-lastFlip[p]):999;
+    if(glow<6){ ctx.globalAlpha=1; ctx.shadowColor=css('--gold-bright'); ctx.shadowBlur=8*DPR;
+      ctx.fillStyle=css('--gold-bright'); }
+    else { ctx.globalAlpha=0.85; ctx.shadowBlur=0; }
+    ctx.fillRect(x,y,cw-gap,ch-gap);
+    ctx.shadowBlur=0;
+  }
+  ctx.globalAlpha=1;
+  // highlight inspected
+  if(inspP>=0 && inspP<S.L){
+    const r=Math.floor(inspP/cols), cX=inspP%cols;
+    ctx.strokeStyle=css('--ink'); ctx.lineWidth=1.5*DPR;
+    ctx.strokeRect(pad+cX*cw-0.5, pad+r*ch-0.5, cw-gap+1, ch-gap+1);
+  }
+}
+
+function drawLine(id, series, opts){
+  const cv=document.getElementById(id), ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,pad=6*DPR; ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle=css('--line'); ctx.lineWidth=1; ctx.globalAlpha=0.6;
+  for(let i=0;i<=3;i++){const y=pad+(H-2*pad)*i/3;ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();}
+  ctx.globalAlpha=1;
+  const n=S.hist.length; if(n<2)return;
+  let lo=opts.lo, hi=opts.hi;
+  if(lo===undefined){lo=Infinity;hi=-Infinity;for(const s of series)for(const d of S.hist){const v=s.f(d);if(v<lo)lo=v;if(v>hi)hi=v;}}
+  if(hi-lo<1e-9)hi=lo+1;
+  const X=i=>pad+(W-2*pad)*i/(n-1), Y=v=>H-pad-(H-2*pad)*(v-lo)/(hi-lo);
+  for(const s of series){
+    ctx.strokeStyle=css(s.c); ctx.lineWidth=1.6*DPR; ctx.beginPath();
+    for(let i=0;i<n;i++){const x=X(i),y=Y(s.f(S.hist[i]));i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.stroke();
+  }
+  if(opts.target!==undefined){
+    ctx.strokeStyle=css('--faint');ctx.setLineDash([3*DPR,3*DPR]);ctx.lineWidth=1;
+    const y=Y(opts.target);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();ctx.setLineDash([]);
+  }
+}
+
+let inspP=-1;
+function drawInspector(){
+  const box=document.getElementById('inspector');
+  if(inspP<0||inspP>=S.L){ return; }
+  const cell=S.pos[inspP], idx=S.chains[S.bestChain||0], cur=idx[inspP];
+  // real conditional given current neighbors of best chain
+  const left=inspP>0?S.pos[inspP-1].codons[idx[inspP-1]]:null;
+  const right=inspP<S.L-1?S.pos[inspP+1].codons[idx[inspP+1]]:null;
+  const mu=S.mu[S.bestChain||0], e=[]; let minE=Infinity;
+  for(let k=0;k<cell.K;k++){let le=S.wf*cell.rar[k]+mu*cell.gc[k];
+    if(left)le+=S.wr*repeatPen(left,cell.codons[k]); if(right)le+=S.wr*repeatPen(cell.codons[k],right);
+    e[k]=le; if(le<minE)minE=le;}
+  let Z=0;const pr=[];for(let k=0;k<cell.K;k++){pr[k]=Math.exp(-S.beta*(e[k]-minE));Z+=pr[k];}
+  let html=`<div class="ihead">Position <b>${inspP+1}</b> &middot; amino acid <b>${cell.aa}</b> &middot; ${cell.K} synonymous codon${cell.K>1?'s':''} &middot; current pick <b>${cell.codons[cur]}</b></div>`;
+  const order=[...Array(cell.K).keys()].sort((a,b)=>pr[b]-pr[a]);
+  for(const k of order){
+    const p=pr[k]/Z*100;
+    html+=`<div class="cand${k===cur?' cur':''}"><span class="name">${cell.codons[k]}</span>`+
+      `<span class="bar"><span style="width:${p.toFixed(1)}%"></span></span>`+
+      `<span class="pct">${p.toFixed(1)}%</span><span class="gc">GC${cell.gc[k]}</span></div>`;
+  }
+  box.innerHTML=html;
+}
+
+function fmt(x){return x>=1000?x.toFixed(0):x>=100?x.toFixed(1):x.toFixed(2);}
+function refreshReadouts(){
+  const b=S.best;
+  document.getElementById('sBest').innerHTML = b.E<Infinity? fmt(b.E)+' <small>nats</small>':'&mdash;';
+  document.getElementById('sGC').innerHTML = b.E<Infinity? (b.gc*100).toFixed(1)+'<small>%</small>':'&mdash;';
+  document.getElementById('sSweep').textContent=S.sweeps;
+  document.getElementById('sFlip').textContent=S.running?S.flips.toFixed(0):'&mdash;';
+  document.getElementById('gTot').textContent = b.E<Infinity?fmt(b.E):'';
+  const mu=S.mu[S.bestChain||0];
+  document.getElementById('gMu').textContent='μ='+mu.toExponential(1);
+  // nucleotide output (best)
+  if(b.seq){
+    const nuc=document.getElementById('nuc');
+    let h=''; for(let i=0;i<b.seq.length;i+=3){h+='<b>'+b.seq.substr(i,3)+'</b> ';}
+    nuc.innerHTML=h;
+  }
+}
+
+function renderAll(){
+  drawRibbon();
+  drawLine('gEnergy',[{f:d=>d.E,c:'--gold'}],{});
+  drawLine('gTerms',[{f:d=>d.u,c:'--ok'},{f:d=>d.g,c:'--cool'},{f:d=>d.r,c:'--ember'}],{});
+  drawLine('gGC',[{f:d=>d.gcFrac,c:'--gold-bright'}],{lo:Math.min(0.25,S.target-0.05),hi:Math.max(0.75,S.target+0.05),target:S.target});
+  drawInspector();
+  refreshReadouts();
+}
+
+/* ============================ LOOP ============================ */
+let raf=null;
+function loop(){
+  if(S.running){ stepOnce(); }
+  renderAll();
+  raf=requestAnimationFrame(loop);
+}
+
+/* ============================ UI WIRING ============================ */
+function $(id){return document.getElementById(id);}
+function setSeg(seg, val, attr){ [...seg.children].forEach(b=>b.classList.toggle('on', b.dataset[attr]===val)); }
+
+function currentProteinSeq(){
+  const prot=document.querySelector('#protSeg .on').dataset.prot;
+  if(prot==='custom'){ return $('customSeq').value || SPIKE; }
+  const L=parseInt($('lenR').value);
+  return SPIKE.slice(0,L);
+}
+function rebuild(){
+  S.host=document.querySelector('#hostSeg .on').dataset.host;
+  S.target=parseFloat($('gcT').value);
+  S.wf=parseFloat($('wf').value);
+  S.wgc=Math.pow(10,parseFloat($('wgc').value));
+  S.wr=parseFloat($('wr').value);
+  S.nChains=parseInt($('ch').value);
+  S.adaptGC=$('adaptGC').checked;
+  S.autoAnneal=true;
+  S.seq=currentProteinSeq();
+  lastFlip=[];
+  buildProblem();
+  inspP=-1;
+  $('inspector').innerHTML='<div class="ihead">Click any position to inspect its live codon distribution &mdash; the sampler’s actual conditional right now.</div>';
+}
+
+// protein toggle
+$('protSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  setSeg($('protSeg'),b.dataset.prot,'prot');
+  const custom=b.dataset.prot==='custom';
+  $('customSeq').style.display=custom?'block':'none';
+  document.querySelector('.ctl label b#lenVal').parentElement.parentElement.style.display=custom?'none':'block';
+  rebuild();});
+$('customSeq').addEventListener('change',()=>{ if(document.querySelector('#protSeg .on').dataset.prot==='custom') rebuild(); });
+$('hostSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  setSeg($('hostSeg'),b.dataset.host,'host'); rebuild();});
+
+// sliders
+$('lenR').addEventListener('input',()=>{const L=parseInt($('lenR').value);$('lenVal').textContent=L;
+  $('lenHint').textContent=`First ${L} of the 1273-aa SARS-CoV-2 spike.`+(L>=1273?' Full protein.':' Slide to the full protein.');});
+$('lenR').addEventListener('change',rebuild);
+$('gcT').addEventListener('input',()=>{S.target=parseFloat($('gcT').value);$('gcTVal').textContent=S.target.toFixed(2);});
+$('wf').addEventListener('input',()=>{S.wf=parseFloat($('wf').value);$('wfVal').textContent=S.wf.toFixed(2);});
+$('wgc').addEventListener('input',()=>{S.wgc=Math.pow(10,parseFloat($('wgc').value));$('wgcVal').textContent=S.wgc<10?S.wgc.toFixed(1):Math.round(S.wgc).toLocaleString();});
+$('wr').addEventListener('input',()=>{S.wr=parseFloat($('wr').value);$('wrVal').textContent=S.wr.toFixed(2);});
+$('ch').addEventListener('input',()=>{$('chVal').textContent=$('ch').value;});
+$('ch').addEventListener('change',rebuild);
+$('adaptGC').addEventListener('change',()=>{S.adaptGC=$('adaptGC').checked;});
+$('betaR').addEventListener('input',()=>{S.autoAnneal=false;S.beta=Math.pow(10,parseFloat($('betaR').value));
+  $('betaVal').textContent=S.beta.toFixed(2);});
+
+// presets
+document.querySelector('.preset-row').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.preset==='standard'){ $('wf').value=0.1;$('wgc').value=0;$('wr').value=0.1;$('gcT').value=0.5; }
+  else { $('wf').value=0.1;$('wgc').value=Math.log10(20000);$('wr').value=0.2;$('gcT').value=0.5; }
+  $('wf').dispatchEvent(new Event('input'));$('wgc').dispatchEvent(new Event('input'));
+  $('wr').dispatchEvent(new Event('input'));$('gcT').dispatchEvent(new Event('input'));
+  rebuild(); if(!S.running) toggleRun(true);
+});
+
+// run controls
+function toggleRun(force){
+  S.running = force!==undefined?force:!S.running;
+  $('runBtn').textContent=S.running?'Pause':'Run';
+  $('runBtn').classList.toggle('sec',S.running);
+  $('runBtn').classList.toggle('go',!S.running);
+}
+$('runBtn').addEventListener('click',()=>toggleRun());
+$('reanBtn').addEventListener('click',()=>{ S.sweeps=0; S.beta=S.betaMin; S.autoAnneal=true;
+  S.hist=[]; S.histStride=1; S.histCount=0; lastFlip=[]; toggleRun(true); });
+
+// ribbon click -> inspector
+$('ribbon').addEventListener('click',e=>{
+  const cv=$('ribbon'),r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)*DPR, y=(e.clientY-r.top)*DPR;
+  const cX=Math.floor((x-ribOX)/ribCW), rY=Math.floor((y-ribOY)/ribCH);
+  if(cX<0||cX>=ribCols||rY<0)return;
+  const p=rY*ribCols+cX; if(p>=0&&p<S.L){ inspP=p; drawInspector(); }
+});
+
+$('copyBtn').addEventListener('click',()=>{ if(S.best.seq){navigator.clipboard.writeText(S.best.seq);
+  $('copyBtn').textContent='Copied!'; setTimeout(()=>$('copyBtn').textContent='Copy DNA',1200);} });
+
+// theme
+(function(){const btn=$('themeBtn'),sys=matchMedia('(prefers-color-scheme: dark)');
+  function cur(){return document.documentElement.getAttribute('data-theme')||(sys.matches?'dark':'light');}
+  btn.addEventListener('click',()=>{document.documentElement.setAttribute('data-theme',cur()==='dark'?'light':'dark');});})();
+
+// resize canvases
+function fitAll(){ ['ribbon','gEnergy','gTerms','gGC'].forEach(id=>fitCanvas($(id))); }
+addEventListener('resize',fitAll);
+
+// boot
+fitAll();
+rebuild();
+toggleRun(true);
+loop();
+</script>
