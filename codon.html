@@ -1,3 +1,4 @@
+<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Codon Instrument &mdash; Thermodynamic Codon Optimization</title>
@@ -107,7 +108,24 @@
   .ribhead .t{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
   .ribhead .leg{font-family:var(--mono);font-size:10.5px;color:var(--faint);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   .ribhead .leg i{width:10px;height:10px;border-radius:2px;display:inline-block;vertical-align:middle;margin-right:4px}
-  #ribbon{width:100%;height:150px;display:block;border-radius:8px;background:var(--panel2);cursor:crosshair}
+  #ribbon{width:100%;height:96px;display:block;border-radius:8px;background:var(--panel2);cursor:crosshair}
+  .seqwin{margin-top:12px}
+  .seqwin-h{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-bottom:8px}
+  .seqwin-h b{color:var(--gold-bright)}
+  .seqread{font-family:var(--mono);display:flex;flex-wrap:wrap;gap:2px;max-height:230px;overflow-y:auto;
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px}
+  .res{display:inline-flex;flex-direction:column;align-items:center;width:27px;padding:2px 0;border-radius:4px;cursor:pointer}
+  .res .a{font-size:11.5px;color:var(--ink);font-weight:600;line-height:1.3}
+  .res .c{font-size:10px;letter-spacing:-.03em;line-height:1.2}
+  .res:hover{background:color-mix(in srgb,var(--gold) 15%,transparent)}
+  .res.flip{background:color-mix(in srgb,var(--gold-bright) 28%,transparent)}
+  .res.sel{outline:1.5px solid var(--gold);outline-offset:-1px}
+  #customInfo{font-family:var(--mono);font-size:11px;margin-top:8px;padding:9px 11px;border-radius:7px;line-height:1.5;
+    background:var(--panel2);border:1px solid var(--line);color:var(--ink-dim);display:none}
+  #customInfo.show{display:block}
+  #customInfo.err{border-color:var(--bad);color:var(--bad)}
+  #customInfo b{color:var(--gold-bright)}
+  #customInfo .tag{color:var(--cool)}
 
   .inspector{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:12px;
     font-family:var(--mono);min-height:78px}
@@ -172,7 +190,8 @@
         <button data-prot="spike" class="on">COVID spike</button>
         <button data-prot="custom">Paste your own</button>
       </div>
-      <textarea id="customSeq" placeholder="Paste a protein sequence (single-letter amino acids: ACDEFGHIKLMNPQRSTVWY)&hellip;" style="display:none;margin-top:8px"></textarea>
+      <textarea id="customSeq" placeholder="Paste a protein (amino acids ACDEFGHIKLMNPQRSTVWY) or a DNA/mRNA sequence (ACGT/U) &mdash; FASTA headers, spaces and line breaks are fine. It auto-detects DNA and translates it, then tries to name the protein.&#10;&#10;Try the GFP gene: ATGAGTAAAGGAGAAGAACTTTTCACT&hellip;" style="display:none;margin-top:8px"></textarea>
+      <div id="customInfo"></div>
       <div class="ctl" style="margin-top:12px">
         <label>Positions optimized <b id="lenVal">200</b></label>
         <input type="range" id="lenR" min="30" max="1273" value="200" step="1">
@@ -245,7 +264,7 @@
 
       <div class="ribwrap">
         <div class="ribhead">
-          <span class="t">Sequence &mdash; best chain &middot; each cell = one codon</span>
+          <span class="t">Overview &mdash; every codon, best chain</span>
           <span class="leg">
             <span><i style="background:var(--cool)"></i>GC 0</span>
             <span><i style="background:var(--gold)"></i>GC 3</span>
@@ -253,8 +272,12 @@
           </span>
         </div>
         <canvas id="ribbon"></canvas>
+        <div class="seqwin">
+          <div class="seqwin-h" id="seqwinLabel">Live sequence &mdash; amino acid over its chosen codon</div>
+          <div class="seqread" id="seqread"></div>
+        </div>
         <div class="inspector" id="inspector">
-          <div class="ihead">Click any position to inspect its live codon distribution &mdash; the sampler's actual conditional right now.</div>
+          <div class="ihead">Click any codon above to inspect its live distribution &mdash; the sampler's actual conditional right now.</div>
         </div>
       </div>
 
@@ -318,10 +341,75 @@ const HOST = {
 };
 const SPIKE = "MFVFLVLLPLVSSQCVNLTTRTQLPPAYTNSFTRGVYYPDKVFRSSVLHSTQDLFLPFFSNVTWFHAIHVSGTNGTKRFDNPVLPFNDGVYFASTEKSNIIRGWIFGTTLDSKTQSLLIVNNATNVVIKVCEFQFCNDPFLGVYYHKNNKSWMESEFRVYSSANNCTFEYVSQPFLMDLEGKQGNFKNLREFVFKNIDGYFKIYSKHTPINLVRDLPQGFSALEPLVDLPIGINITRFQTLLALHRSYLTPGDSSSGWTAGAAAYYVGYLQPRTFLLKYNENGTITDAVDCALDPLSETKCTLKSFTVEKGIYQTSNFRVQPTESIVRFPNITNLCPFGEVFNATRFASVYAWNRKRISNCVADYSVLYNSASFSTFKCYGVSPTKLNDLCFTNVYADSFVIRGDEVRQIAPGQTGKIADYNYKLPDDFTGCVIAWNSNNLDSKVGGNYNYLYRLFRKSNLKPFERDISTEIYQAGSTPCNGVEGFNCYFPLQSYGFQPTNGVGYQPYRVVVLSFELLHAPATVCGPKKSTNLVKNKCVNFNFNGLTGTGVLTESNKKFLPFQQFGRDIADTTDAVRDPQTLEILDITPCSFGGVSVITPGTNTSNQVAVLYQDVNCTEVPVAIHADQLTPTWRVYSTGSNVFQTRAGCLIGAEHVNNSYECDIPIGAGICASYQTQTNSPRRARSVASQSIIAYTMSLGAENSVAYSNNSIAIPTNVTISVTTEILPVSMTKTSVDCTMYICGDSTECSNLLLQYGSFCTQLNRALTGIAVEQDKNTQEVFAQVKQIYKTPPIKDFGGFNFSQILPDPSKPSKRSFIEDLLFNKVTLADAGFIKQYGDCLGDIAARDLICAQKFNGLTVLPPLLTDEMIAQYTSALLAGTITSGWTFGAGAALQIPFAMQMAYRFNGIGVTQNVLYENQKLIANQFNSAIGKIQDSLSSTASALGKLQDVVNQNAQALNTLVKQLSSNFGAISSVLNDILSRLDKVEAEVQIDRLITGRLQSLQTYVTQQLIRAAEIRASANLAATKMSECVLGQSKRVDFCGKGYHLMSFPQSAPHGVVFLHVTYVPAQEKNFTTAPAICHDGKAHFPREGVFVSNGTHWFVTQRNFYEPQIITTDNTFVSGNCDVVIGIVNNTVYDPLQPELDSFKEELDKYFKNHTSPDVDLGDISGINASVVNIQKEIDRLNEVAKNLNESLIDLQELGKYEQYIKWPWYIWLGFIAGLIAIVMVTIMLCCMTSCCSCLKGCCSCGSCCKFDEDDSEPVLKGVKLHYT";
 
+// codon -> amino acid (standard genetic code); '*' = stop
+const CODON2AA={TTT:'F',TTC:'F',TTA:'L',TTG:'L',CTT:'L',CTC:'L',CTA:'L',CTG:'L',ATT:'I',ATC:'I',ATA:'I',ATG:'M',
+GTT:'V',GTC:'V',GTA:'V',GTG:'V',TCT:'S',TCC:'S',TCA:'S',TCG:'S',CCT:'P',CCC:'P',CCA:'P',CCG:'P',ACT:'T',ACC:'T',
+ACA:'T',ACG:'T',GCT:'A',GCC:'A',GCA:'A',GCG:'A',TAT:'Y',TAC:'Y',TAA:'*',TAG:'*',CAT:'H',CAC:'H',CAA:'Q',CAG:'Q',
+AAT:'N',AAC:'N',AAA:'K',AAG:'K',GAT:'D',GAC:'D',GAA:'E',GAG:'E',TGT:'C',TGC:'C',TGA:'*',TGG:'W',CGT:'R',CGC:'R',
+CGA:'R',CGG:'R',AGT:'S',AGC:'S',AGA:'R',AGG:'R',GGT:'G',GGC:'G',GGA:'G',GGG:'G'};
+// Known-protein library for identification. Honest: only real, verified sequences.
+// GFP is the exact translation of the classic avGFP gene; spike is the paper benchmark.
+const GFP="MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATYGKLTLKFICTTGKLPVPWPTLVTTFSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGNYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKMEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPIGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK";
+const KNOWN=[{name:"SARS-CoV-2 spike glycoprotein",aa:()=>SPIKE},{name:"Green Fluorescent Protein (GFP)",aa:()=>GFP}];
+
 /* ============================ REPEAT PENALTY ============================ */
 const _rpMemo = new Map();
 function longestRun(s){let m=1,c=1;for(let i=1;i<s.length;i++){if(s[i]===s[i-1]){c++;if(c>m)m=c;}else c=1;}return m;}
 function repeatPen(c1,c2){const k=c1+c2;let v=_rpMemo.get(k);if(v===undefined){const m=longestRun(k);v=m*m-1;_rpMemo.set(k,v);}return v;}
+
+/* ==================== INPUT PARSING (paste-your-own, hardened) ==================== */
+function cleanInput(raw){ // drop FASTA headers, keep letters only, uppercase
+  return (raw||"").split(/\r?\n/).filter(l=>!l.trim().startsWith('>')).join('').toUpperCase().replace(/[^A-Z]/g,'');
+}
+function looksLikeDNA(s){
+  if(s.length<6) return false;
+  let n=0; for(const c of s) if(c==='A'||c==='C'||c==='G'||c==='T'||c==='U') n++;
+  return n/s.length > 0.95;
+}
+function translateDNA(s){
+  s=s.replace(/U/g,'T');
+  let start=0; const atg=s.indexOf('ATG'); if(atg>=0 && atg<60) start=atg; // honor a start codon if near the 5' end
+  let aa='', codons=0, stop=false;
+  for(let i=start;i+3<=s.length;i+=3){ const a=CODON2AA[s.substr(i,3)]; if(a===undefined) continue;
+    if(a==='*'){ stop=true; break; } aa+=a; codons++; }
+  return {aa, codons, stop};
+}
+function identityFrac(a,b){
+  const n=Math.min(a.length,b.length); if(!n) return 0;
+  let m=0; for(let i=0;i<n;i++) if(a[i]===b[i]) m++;
+  return (m/n) * (Math.min(a.length,b.length)/Math.max(a.length,b.length));
+}
+function identify(aa){
+  let best=null;
+  for(const k of KNOWN){ const f=identityFrac(aa,k.aa()); if(f>=0.85 && (!best||f>best.f)) best={name:k.name,f}; }
+  return best;
+}
+function parseCustom(raw){
+  const cleaned=cleanInput(raw);
+  if(cleaned.length<3) return {ok:false, msg:"Paste a protein (amino acids) or a DNA / mRNA sequence."};
+  let aa, kind, codons=null, stop=false, dropped=0;
+  if(looksLikeDNA(cleaned)){
+    const t=translateDNA(cleaned); aa=t.aa; codons=t.codons; stop=t.stop; kind='dna';
+    if(aa.length<1) return {ok:false, msg:"Looks like DNA, but no complete codon / reading frame was found."};
+  } else {
+    let clean=''; for(const c of cleaned){ if(AA[c]) clean+=c; else dropped++; }
+    aa=clean; kind='protein';
+    if(aa.length<1) return {ok:false, msg:"No valid amino acids found. Use single-letter codes: ACDEFGHIKLMNPQRSTVWY."};
+  }
+  const CAP=1500; let capped=false; if(aa.length>CAP){ aa=aa.slice(0,CAP); capped=true; }
+  return {ok:true, aa, kind, codons, stop, dropped, capped, cap:CAP, id:identify(aa)};
+}
+function infoLine(p){
+  let s = p.kind==='dna'
+    ? `<span class="tag">DNA detected</span> &rarr; translated ${p.codons} codon${p.codons!==1?'s':''}${p.stop?' (to stop codon)':''}`
+    : `<span class="tag">Protein input</span>`;
+  s += ` &middot; <b>${p.id?p.id.name:'Unidentified protein'}</b> &middot; ${p.aa.length} aa`;
+  if(p.id) s += ` <span style="color:var(--ok)">(${(p.id.f*100).toFixed(0)}% identity)</span>`;
+  const notes=[]; if(p.dropped) notes.push(`${p.dropped} non-amino-acid character${p.dropped!==1?'s':''} ignored`);
+  if(p.capped) notes.push(`capped to first ${p.cap} residues (browser demo)`);
+  if(notes.length) s += `<br><span style="color:var(--faint)">${notes.join(' &middot; ')}</span>`;
+  return s;
+}
 
 /* ============================ SAMPLER ============================ */
 const S = {
@@ -357,6 +445,7 @@ function buildProblem(){
 
 // True energy of a chain (the real objective; adaptive mu is only for sampling)
 function energyOf(idx){
+  if(!S.L) return {total:0,usage:0,gc:0,repeat:0,gcFrac:0};
   let usage=0, gcCount=0, rep=0;
   const P=S.pos;
   for(let p=0;p<S.L;p++){ const k=idx[p]; usage+=P[p].rar[k]; gcCount+=P[p].gc[k]; }
@@ -411,6 +500,7 @@ function adaptMu(c){
 let lastFlip=[];  // per-position sweep index of last flip (for glow)
 
 function computeAndRecord(){
+  if(!S.L) return;
   // evaluate all chains, track best, push history from best chain
   let bestC=0, bestE=Infinity, bestTerms=null;
   for(let c=0;c<S.nChains;c++){
@@ -436,6 +526,7 @@ function computeAndRecord(){
 }
 
 function stepOnce(){
+  if(!S.L) return;
   // anneal ramp
   if(S.autoAnneal && S.running){
     const ramp=200; // sweeps to go min->max
@@ -552,7 +643,7 @@ function refreshReadouts(){
   document.getElementById('sFlip').textContent=S.running?S.flips.toFixed(0):'&mdash;';
   document.getElementById('gTot').textContent = b.E<Infinity?fmt(b.E):'';
   const mu=S.mu[S.bestChain||0];
-  document.getElementById('gMu').textContent='μ='+mu.toExponential(1);
+  document.getElementById('gMu').textContent = (mu!==undefined)?('μ='+mu.toExponential(1)):'μ';
   // nucleotide output (best)
   if(b.seq){
     const nuc=document.getElementById('nuc');
@@ -561,8 +652,70 @@ function refreshReadouts(){
   }
 }
 
+/* ------------ readable sequence render (amino acid over codon) ------------ */
+let focusStart=0; const SEQ_WIN=300; let seqChips=[];
+function showCustomInfo(html, isErr){
+  const el=$('customInfo'); el.innerHTML=html; el.className='show'+(isErr?' err':'');
+}
+function updateSeqReadLabel(end){
+  const all = focusStart===0 && end===S.L;
+  $('seqwinLabel').innerHTML = all
+    ? `Live sequence &mdash; amino acid over its chosen codon &middot; <b>${S.L}</b> residue${S.L!==1?'s':''}`
+    : `Live sequence &mdash; positions <b>${focusStart+1}&ndash;${end}</b> of ${S.L} &middot; click the overview above to move this window`;
+}
+function buildSeqRead(){
+  const box=$('seqread'); seqChips=[];
+  if(!S.L){ box.innerHTML=''; $('seqwinLabel').innerHTML='Live sequence &mdash; nothing to render yet.'; return; }
+  focusStart=Math.max(0, Math.min(focusStart, Math.max(0, S.L-SEQ_WIN)));
+  const end=Math.min(S.L, focusStart+SEQ_WIN);
+  const frag=document.createDocumentFragment();
+  for(let p=focusStart;p<end;p++){
+    const el=document.createElement('div'); el.className='res'; el.dataset.p=p;
+    const a=document.createElement('span'); a.className='a'; a.textContent=S.pos[p].aa;
+    const c=document.createElement('span'); c.className='c';
+    el.appendChild(a); el.appendChild(c);
+    frag.appendChild(el);
+    seqChips.push({p, el, c, last:-1, flip:false, sel:false});
+  }
+  box.innerHTML=''; box.appendChild(frag);
+  updateSeqReadLabel(end);
+  updateSeqRead(true);
+}
+function updateSeqRead(force){
+  if(!seqChips.length) return;
+  const idx=S.chains[S.bestChain||0]; if(!idx) return;
+  for(const ch of seqChips){
+    const p=ch.p, k=idx[p]; if(k===undefined) continue;
+    if(force || ch.last!==k){ ch.c.textContent=S.pos[p].codons[k]; ch.c.style.color=gcColor(S.pos[p].gc[k]); ch.last=k; }
+    const isFlip=lastFlip[p]!==undefined && (S.sweeps-lastFlip[p])<6;
+    if(isFlip!==ch.flip){ ch.el.classList.toggle('flip',isFlip); ch.flip=isFlip; }
+    const isSel=(p===inspP);
+    if(isSel!==ch.sel){ ch.el.classList.toggle('sel',isSel); ch.sel=isSel; }
+  }
+}
+function focusOn(p){
+  if(S.L>SEQ_WIN){
+    const ns=Math.max(0, Math.min(p-Math.floor(SEQ_WIN/2), S.L-SEQ_WIN));
+    if(ns!==focusStart){ focusStart=ns; buildSeqRead(); }
+  }
+  updateSeqRead(false);
+  const chip=seqChips.find(c=>c.p===p); if(chip) chip.el.scrollIntoView({block:'nearest'});
+}
+// Empty / invalid custom input: park the engine, don't let it divide-by-zero.
+function haltEmpty(){
+  S.running=false; S.seq=""; S.pos=[]; S.L=0; S.chains=[]; S.mu=[];
+  S.best={E:Infinity,terms:null,seq:null,gc:0,idx:null};
+  S.hist=[]; S.histStride=1; S.histCount=0; S.sweeps=0; S.flips=0; lastFlip=[]; inspP=-1; seqChips=[];
+  $('runBtn').textContent='Run'; $('runBtn').classList.add('go'); $('runBtn').classList.remove('sec');
+  $('seqread').innerHTML=''; $('seqwinLabel').innerHTML='Live sequence &mdash; nothing to render yet.';
+  $('nuc').innerHTML='&mdash;';
+  $('inspector').innerHTML='<div class="ihead">Nothing loaded &mdash; paste a valid protein or DNA sequence to begin.</div>';
+  renderAll();
+}
+
 function renderAll(){
   drawRibbon();
+  updateSeqRead(false);
   drawLine('gEnergy',[{f:d=>d.E,c:'--gold'}],{});
   drawLine('gTerms',[{f:d=>d.u,c:'--ok'},{f:d=>d.g,c:'--cool'},{f:d=>d.r,c:'--ember'}],{});
   drawLine('gGC',[{f:d=>d.gcFrac,c:'--gold-bright'}],{lo:Math.min(0.25,S.target-0.05),hi:Math.max(0.75,S.target+0.05),target:S.target});
@@ -582,13 +735,8 @@ function loop(){
 function $(id){return document.getElementById(id);}
 function setSeg(seg, val, attr){ [...seg.children].forEach(b=>b.classList.toggle('on', b.dataset[attr]===val)); }
 
-function currentProteinSeq(){
-  const prot=document.querySelector('#protSeg .on').dataset.prot;
-  if(prot==='custom'){ return $('customSeq').value || SPIKE; }
-  const L=parseInt($('lenR').value);
-  return SPIKE.slice(0,L);
-}
 function rebuild(){
+  const wasHalted = (S.L===0);   // coming back from empty/invalid (or first boot)
   S.host=document.querySelector('#hostSeg .on').dataset.host;
   S.target=parseFloat($('gcT').value);
   S.wf=parseFloat($('wf').value);
@@ -597,11 +745,20 @@ function rebuild(){
   S.nChains=parseInt($('ch').value);
   S.adaptGC=$('adaptGC').checked;
   S.autoAnneal=true;
-  S.seq=currentProteinSeq();
-  lastFlip=[];
+  const prot=document.querySelector('#protSeg .on').dataset.prot;
+  let seq;
+  if(prot==='custom'){
+    const p=parseCustom($('customSeq').value);
+    if(!p.ok){ showCustomInfo(p.msg, true); haltEmpty(); return; }
+    showCustomInfo(infoLine(p), false); seq=p.aa;
+  } else {
+    $('customInfo').className=''; seq=SPIKE.slice(0, parseInt($('lenR').value));
+  }
+  S.seq=seq; lastFlip=[]; focusStart=0; inspP=-1;
   buildProblem();
-  inspP=-1;
-  $('inspector').innerHTML='<div class="ihead">Click any position to inspect its live codon distribution &mdash; the sampler’s actual conditional right now.</div>';
+  buildSeqRead();
+  $('inspector').innerHTML='<div class="ihead">Click any codon above to inspect its live distribution — the sampler’s actual conditional right now.</div>';
+  if(wasHalted && !S.running) toggleRun(true);   // resume after a bad-paste halt / first boot
 }
 
 // protein toggle
@@ -611,7 +768,11 @@ $('protSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(
   $('customSeq').style.display=custom?'block':'none';
   document.querySelector('.ctl label b#lenVal').parentElement.parentElement.style.display=custom?'none':'block';
   rebuild();});
-$('customSeq').addEventListener('change',()=>{ if(document.querySelector('#protSeg .on').dataset.prot==='custom') rebuild(); });
+let customDeb=null;
+$('customSeq').addEventListener('input',()=>{
+  if(document.querySelector('#protSeg .on').dataset.prot!=='custom')return;
+  clearTimeout(customDeb); customDeb=setTimeout(rebuild,350);
+});
 $('hostSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
   setSeg($('hostSeg'),b.dataset.host,'host'); rebuild();});
 
@@ -655,7 +816,13 @@ $('ribbon').addEventListener('click',e=>{
   const x=(e.clientX-r.left)*DPR, y=(e.clientY-r.top)*DPR;
   const cX=Math.floor((x-ribOX)/ribCW), rY=Math.floor((y-ribOY)/ribCH);
   if(cX<0||cX>=ribCols||rY<0)return;
-  const p=rY*ribCols+cX; if(p>=0&&p<S.L){ inspP=p; drawInspector(); }
+  const p=rY*ribCols+cX; if(p>=0&&p<S.L){ inspP=p; drawInspector(); focusOn(p); }
+});
+
+// readable-sequence click -> inspector (and mark selection)
+$('seqread').addEventListener('click',e=>{
+  const el=e.target.closest('.res'); if(!el)return;
+  const p=parseInt(el.dataset.p); if(p>=0&&p<S.L){ inspP=p; drawInspector(); updateSeqRead(false); }
 });
 
 $('copyBtn').addEventListener('click',()=>{ if(S.best.seq){navigator.clipboard.writeText(S.best.seq);
