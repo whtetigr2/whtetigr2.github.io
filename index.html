@@ -1,5 +1,7 @@
 <meta charset="utf-8">
 <title>Paul Shaver &mdash; Thermodynamic Computing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>&#128293;</text></svg>">
 <style>
   :root{
     --bg:#0c0a08; --bg2:#110d0a; --panel:#15110d; --panel2:#0a0806;
@@ -157,6 +159,19 @@
         let the system relax toward the rest &mdash; pointed at a different problem. The live ones run
         in your browser right now.</p>
       <div class="grid">
+
+        <div class="card">
+          <div class="top">
+            <h3>DOOM &mdash; on the sampler</h3><span class="badge live">Live</span>
+          </div>
+          <div class="viz" data-viz="doom"></div>
+          <p>id Software's real E1M1, running as a <strong>25,000&#8209;cell probabilistic lattice</strong>.
+            Every pixel, the textures, the lighting, the monster AI &mdash; and even <em>which wall you
+            see</em> &mdash; is a sample from a Potts Hamiltonian relaxed by block&#8209;Gibbs. Drop the
+            temperatures and watch the whole world dissolve into noise and re&#8209;condense. Nothing on
+            screen is a fixed image. <em>(Desktop recommended.)</em></p>
+          <a class="go" href="./doom.html" target="_blank" rel="noopener">Open live demo &rarr;</a>
+        </div>
 
         <div class="card">
           <div class="top">
@@ -381,6 +396,19 @@ document.querySelectorAll('.viz').forEach(el=>{
       for(let c=0;c<n;c++){const hh=(Math.sin(t+c*0.5)*0.5+0.5)*H*0.8+H*0.1;
         ctx.fillStyle=c%3===0?css('--cool'):gold; ctx.globalAlpha=0.7;
         ctx.fillRect(c*bw+bw*0.2,H-hh,bw*0.6,hh);}
+    } else if(kind==='doom'){
+      // a flickering "corridor" of p-bits: a wall band the sampler holds, floor/ceiling fading
+      const n=22,bw=W/n,rows=5,rh=H/rows,ember=css('--ember');
+      for(let c=0;c<n;c++){
+        const wall=0.30+0.26*Math.sin(c*0.55+0.5)+0.10*Math.sin(c*1.9+t*0.2);
+        for(let r=0;r<rows;r++){
+          const inWall=Math.abs(r/(rows-1)-0.5)<wall;
+          const flick=(Math.sin(t*3.2+c*0.8+r*1.4)+1)/2;
+          ctx.globalAlpha=inWall?(0.22+0.72*flick):(0.05+0.10*flick);
+          ctx.fillStyle=inWall?((c+r)%2?gold:ember):dim;
+          ctx.fillRect(c*bw+bw*0.16,r*rh+rh*0.16,bw*0.68,rh*0.68);
+        }
+      }
     }
     ctx.restore();
     requestAnimationFrame(frame);
