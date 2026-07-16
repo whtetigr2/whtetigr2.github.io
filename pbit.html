@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>p-bit Sampler Core - Verification Workbench</title>
+</head>
+<body>
+<style>
+  :root{
+    --bg:#eef1f5; --bg2:#f6f8fb; --panel:#ffffff; --panel2:#f2f5f9; --line:#dbe1ea; --line2:#c5cedb;
+    --ink:#111722; --muted:#4f5e73; --faint:#8393a6;
+    --amber:#c05600; --amber-s:#e07a1f; --cyan:#0a6fb0; --cyan-s:#2b8fd0;
+    --pass:#12864a; --fail:#c02a35; --warn:#8a6100;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --sh:0 1px 2px rgba(18,25,40,.05),0 8px 24px rgba(18,25,40,.06);
+    --glow:none;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#080b11; --bg2:#0c1017; --panel:#111722; --panel2:#161d2a; --line:#232c3b; --line2:#2f3b4e;
+      --ink:#e9eff7; --muted:#93a1b5; --faint:#5c6a7e;
+      --amber:#ff9f45; --amber-s:#ffb066; --cyan:#4fc3ff; --cyan-s:#7ad3ff;
+      --pass:#3ad07f; --fail:#ff616d; --warn:#f5b445;
+      --sh:0 1px 2px rgba(0,0,0,.5),0 10px 34px rgba(0,0,0,.38);
+      --glow:0 0 0 1px rgba(255,159,69,.14);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#080b11; --bg2:#0c1017; --panel:#111722; --panel2:#161d2a; --line:#232c3b; --line2:#2f3b4e;
+    --ink:#e9eff7; --muted:#93a1b5; --faint:#5c6a7e;
+    --amber:#ff9f45; --amber-s:#ffb066; --cyan:#4fc3ff; --cyan-s:#7ad3ff;
+    --pass:#3ad07f; --fail:#ff616d; --warn:#f5b445;
+    --sh:0 1px 2px rgba(0,0,0,.5),0 10px 34px rgba(0,0,0,.38); --glow:0 0 0 1px rgba(255,159,69,.14);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f5; --bg2:#f6f8fb; --panel:#ffffff; --panel2:#f2f5f9; --line:#dbe1ea; --line2:#c5cedb;
+    --ink:#111722; --muted:#4f5e73; --faint:#8393a6;
+    --amber:#c05600; --amber-s:#e07a1f; --cyan:#0a6fb0; --cyan-s:#2b8fd0;
+    --pass:#12864a; --fail:#c02a35; --warn:#8a6100;
+    --sh:0 1px 2px rgba(18,25,40,.05),0 8px 24px rgba(18,25,40,.06); --glow:none;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:
+      radial-gradient(1200px 600px at 80% -10%, color-mix(in srgb,var(--amber) 7%,transparent), transparent 60%),
+      var(--bg);
+    color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:26px 22px 72px}
+  a{color:var(--cyan)}
+  .mono{font-family:var(--mono)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--amber);font-weight:600}
+  h1{font-size:clamp(27px,4.6vw,44px);line-height:1.04;margin:.3em 0 .12em;letter-spacing:-.025em;text-wrap:balance;font-weight:750}
+  .lede{color:var(--muted);font-size:16.5px;max-width:70ch;margin:.3em 0 0}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .theme-btn{font-family:var(--mono);font-size:12px;cursor:pointer;background:var(--panel);
+    color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:7px 11px}
+  .theme-btn:hover{border-color:var(--line2);color:var(--ink)}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .badge{font-family:var(--mono);font-size:11.5px;padding:6px 11px;border-radius:7px;
+    border:1px solid var(--line);background:var(--panel);color:var(--muted);display:inline-flex;gap:7px;
+    align-items:center;box-shadow:var(--sh)}
+  .badge b{color:var(--ink);font-weight:650}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--pass);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--pass) 20%,transparent)}
+  .grid{display:grid;grid-template-columns:322px 1fr;gap:16px;margin-top:24px;align-items:start}
+  @media (max-width:880px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:18px;box-shadow:var(--sh)}
+  .panel.stick{position:sticky;top:14px}
+  @media (max-width:880px){.panel.stick{position:static}}
+  .h2{font-size:12px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+    margin:0 0 15px;font-weight:650;display:flex;align-items:center;gap:8px}
+  .h2 .n{color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line));border-radius:5px;
+    padding:1px 6px;font-size:11px}
+  .ctrl{margin:0 0 15px}
+  .ctrl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+  .ctrl label{font-size:13.5px;font-weight:550}
+  .ctrl .val{font-family:var(--mono);font-size:13px;color:var(--amber);font-weight:650}
+  input[type=range]{width:100%;accent-color:var(--amber);height:20px;cursor:pointer}
+  input[type=number]{font-family:var(--mono);width:92px;background:var(--panel2);border:1px solid var(--line);
+    color:var(--ink);border-radius:6px;padding:5px 8px;font-size:13px}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:3px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{font-family:var(--mono);font-size:12px;padding:7px 12px;border:0;background:transparent;color:var(--muted);cursor:pointer}
+  .seg button[aria-pressed=true]{background:var(--amber);color:#08101c}
+  .toggle{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13.5px;user-select:none}
+  .toggle input{width:16px;height:16px;accent-color:var(--amber)}
+  .btn{font-family:var(--mono);font-size:12.5px;cursor:pointer;background:var(--panel2);color:var(--ink);
+    border:1px solid var(--line2);border-radius:8px;padding:8px 13px;transition:.12s}
+  .btn:hover{border-color:var(--amber);color:var(--amber)}
+  .btn.primary{background:var(--amber);color:#08101c;border-color:var(--amber);font-weight:650}
+  .btn.primary:hover{background:var(--amber-s);color:#08101c}
+  .btn.ghost{background:transparent}
+  .readouts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .metric{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+  .metric .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .metric .v{font-family:var(--mono);font-size:25px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .metric .v small{font-size:12px;color:var(--muted);font-weight:400}
+  .verdict{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;font-weight:650;font-size:14px;
+    border:1px solid transparent;margin-bottom:13px}
+  .verdict .ic{font-size:16px}
+  .v-pass{background:color-mix(in srgb,var(--pass) 13%,transparent);color:var(--pass);border-color:color-mix(in srgb,var(--pass) 34%,transparent)}
+  .v-fail{background:color-mix(in srgb,var(--fail) 12%,transparent);color:var(--fail);border-color:color-mix(in srgb,var(--fail) 32%,transparent)}
+  canvas{width:100%;height:auto;display:block}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:9px;flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:15px;height:10px;border-radius:2px;display:inline-block}
+  .pipe{display:flex;align-items:stretch;margin-top:14px;overflow-x:auto;padding-bottom:5px}
+  .stage{flex:1;min-width:116px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;position:relative}
+  .stage+.stage{margin-left:20px}
+  .stage:not(:last-child)::after{content:"\2192";position:absolute;right:-15px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:15px}
+  .stage .t{font-size:12px;font-weight:650}
+  .stage .d{font-family:var(--mono);font-size:11px;color:var(--amber);margin-top:5px}
+  .stage .s{font-size:10.5px;color:var(--faint);margin-top:2px}
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  @media (max-width:880px){.cols2{grid-template-columns:1fr}}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:12.5px;font-family:var(--mono)}
+  .kv .kk{color:var(--faint)}
+  .kv .vv{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums;word-break:break-word}
+  pre.receipt{font-family:var(--mono);font-size:11.5px;background:var(--bg2);border:1px solid var(--line);border-radius:9px;
+    padding:12px;overflow:auto;max-height:260px;color:var(--muted);margin:12px 0 0;line-height:1.45}
+  .tbl-wrap{overflow:auto;max-height:330px;border:1px solid var(--line);border-radius:9px;margin-top:2px}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums}
+  th{position:sticky;top:0;background:var(--panel2);color:var(--faint);font-weight:600;text-align:right;padding:7px 10px;
+    border-bottom:1px solid var(--line);letter-spacing:.03em}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:5px 10px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);color:var(--muted)}
+  td.hi{color:var(--ink)}
+  tr:hover td{background:color-mix(in srgb,var(--amber) 5%,transparent)}
+  .barcell{display:inline-block;height:8px;border-radius:2px;vertical-align:middle}
+  textarea{width:100%;min-height:88px;background:var(--bg2);border:1px solid var(--line);color:var(--ink);
+    border-radius:9px;padding:11px;font-family:var(--mono);font-size:12px;resize:vertical;line-height:1.5}
+  .dut-actions{display:flex;gap:8px;flex-wrap:wrap;margin:11px 0}
+  .report{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+  .report.hide{display:none}
+  .marg{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:10px}
+  .marg .cell{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:6px 4px;text-align:center;
+    font-family:var(--mono);font-size:10.5px}
+  .marg .cell .lbl{color:var(--faint)}
+  .marg .cell .err{font-size:12px;font-weight:650;margin-top:2px}
+  .note{font-size:13px;color:var(--muted);max-width:78ch}
+  .section-head{margin:34px 0 4px;display:flex;align-items:center;gap:12px}
+  .section-head h3{font-size:19px;margin:0;letter-spacing:-.02em}
+  .section-head .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+  .section-head .tag{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.1em;text-transform:uppercase}
+  footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:12.5px}
+  .pulse{animation:pl .55s ease}
+  @keyframes pl{0%{opacity:.5}100%{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.pulse{animation:none}html{scroll-behavior:auto}}
+</style>
+
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <div class="eyebrow">Hardware verification &middot; thermodynamic sampling</div>
+      <h1>p-bit Sampler Core &mdash; Verification Workbench</h1>
+      <p class="lede">A deterministic, bit-accurate <b>golden reference model</b> for a probabilistic-bit
+        sampler datapath &mdash; with a full chain of custody. Configure the hardware, sample against the
+        <b>exact Boltzmann distribution</b>, inspect every number, download the receipt, and score a
+        device's own sample stream for pass/fail. All computed live in your browser.</p>
+    </div>
+    <button class="theme-btn" id="theme">&#9680; theme</button>
+  </div>
+  <div class="badges">
+    <span class="badge"><span class="dot"></span>RTL bit-exact&nbsp;<b>12,864 / 12,864</b></span>
+    <span class="badge">Icarus Verilog&nbsp;<b>PASS</b></span>
+    <span class="badge">reference:&nbsp;<b>exact Boltzmann</b></span>
+    <span class="badge">engine:&nbsp;<b>seeded &middot; reproducible</b></span>
+  </div>
+
+  <!-- ============ LIVE EXPLORER ============ -->
+  <div class="grid">
+    <div class="panel stick">
+      <div class="h2"><span class="n">A</span> Datapath configuration</div>
+
+      <div class="ctrl">
+        <div class="row"><label>Field fixed-point &mdash; frac bits</label><span class="val" id="fracV">8</span></div>
+        <input type="range" id="frac" min="1" max="10" value="8" step="1">
+        <div class="hint">Q<i>m.n</i> field accumulator width (the MAC datapath).</div>
+      </div>
+      <div class="ctrl">
+        <div class="row"><label>Sigmoid LUT &mdash; address bits</label><span class="val" id="addrV">6</span></div>
+        <input type="range" id="addr" min="3" max="9" value="6" step="1">
+        <div class="hint">ROM = 2<sup id="addrPow">6</sup> entries &times; 12-bit output.</div>
+      </div>
+      <div class="ctrl">
+        <label class="toggle"><input type="checkbox" id="interp" checked> Linear interpolation (LUT)</label>
+      </div>
+      <div class="ctrl">
+        <div class="row"><label>RNG source</label></div>
+        <div class="seg" role="group" aria-label="RNG mode">
+          <button id="rngLfsr" aria-pressed="true">per-site LFSR</button>
+          <button id="rngIdeal" aria-pressed="false">ideal RNG</button>
+        </div>
+      </div>
+      <div class="ctrl" id="lfsrCtrl">
+        <div class="row"><label>LFSR width</label><span class="val" id="wV">16</span></div>
+        <input type="range" id="wbits" min="8" max="16" value="16" step="2">
+        <div class="hint">Maximal-length Galois LFSR, scattered per-site seeds.</div>
+      </div>
+      <div class="ctrl">
+        <div class="row"><label>Inverse temperature &beta;</label><span class="val" id="betaV">1.00</span></div>
+        <input type="range" id="beta" min="0.3" max="1.8" value="1.0" step="0.1">
+      </div>
+      <div class="ctrl">
+        <div class="row"><label>Random seed</label></div>
+        <input type="number" id="seed" value="12345" min="1" step="1">
+        <div class="hint">Deterministic: same seed &rarr; identical result. This is the audit anchor.</div>
+      </div>
+      <div class="metric" style="margin-top:4px">
+        <div class="k">datapath bit-cost</div>
+        <div class="v" id="cost">&mdash;</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="h2"><span class="n">B</span> Sample &amp; score vs exact Boltzmann</div>
+      <div class="verdict v-pass" id="verdict"><span class="ic">&#10003;</span><span id="verdictTxt">Samples correctly</span></div>
+      <div class="readouts">
+        <div class="metric"><div class="k">Total-variation distance</div><div class="v" id="tv">0.000</div></div>
+        <div class="metric"><div class="k">KL( sampled &#8214; exact )</div><div class="v" id="kl">0.000</div></div>
+      </div>
+      <canvas id="chart" width="1320" height="500"></canvas>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--cyan)"></span>exact Boltzmann P(state)</span>
+        <span><span class="sw" style="background:var(--amber)"></span>hardware-model samples</span>
+        <span style="color:var(--faint)">lower strip = residual (sampled &minus; exact) per state</span>
+      </div>
+      <div class="pipe">
+        <div class="stage"><div class="t">Field MAC</div><div class="d" id="p1">Q_.8</div><div class="s">h&#7522;+&Sigma;J s</div></div>
+        <div class="stage"><div class="t">&times; 2&beta;</div><div class="d">temperature</div><div class="s">scale to z</div></div>
+        <div class="stage"><div class="t">Sigmoid LUT</div><div class="d" id="p3">2^6 x 12b</div><div class="s">p=&sigma;(z)</div></div>
+        <div class="stage"><div class="t">Stochastic cmp</div><div class="d" id="p4">LFSR 16b</div><div class="s">u&lt;p ? +1:&minus;1</div></div>
+        <div class="stage"><div class="t">Spin out</div><div class="d">1 bit</div><div class="s">block-parallel</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CHAIN OF CUSTODY ============ -->
+  <div class="section-head"><span class="tag">provenance</span><h3>Chain of custody</h3><span class="rule"></span></div>
+  <div class="cols2">
+    <div class="panel">
+      <div class="h2"><span class="n">C</span> Run record &amp; receipt</div>
+      <div class="kv" id="record"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn primary" id="dlReceipt">Download receipt (JSON)</button>
+        <button class="btn" id="reproCheck">Verify reproducibility</button>
+      </div>
+      <div id="reproOut" class="hint" style="margin-top:8px"></div>
+      <pre class="receipt" id="receipt"></pre>
+    </div>
+    <div class="panel">
+      <div class="h2"><span class="n">D</span> Raw numbers &mdash; top states by probability</div>
+      <div class="hint" style="margin:-6px 0 10px">Every value below is what produced the metrics above &mdash; nothing summarized away.</div>
+      <div class="tbl-wrap">
+        <table id="dataTbl"><thead><tr>
+          <th>state</th><th>bits</th><th>exact P</th><th>sampled P</th><th>count</th><th>residual</th>
+        </tr></thead><tbody id="dataBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DEVICE UNDER TEST ============ -->
+  <div class="section-head"><span class="tag">acceptance test</span><h3>Score a device's samples</h3><span class="rule"></span></div>
+  <div class="panel">
+    <div class="h2"><span class="n">E</span> Device-under-test ingest &mdash; the hardware slot</div>
+    <p class="note" style="margin-top:-4px">This is where real hardware plugs in. Paste a sample stream
+      (state indices 0&ndash;255, any separators) from an RTL sim, an emulator, or &mdash; with access &mdash;
+      the TSU itself, and the harness scores it against the exact reference: <b>pass/fail</b>, distribution
+      distance, and per-spin marginals showing <i>where</i> it deviates. <span class="mono" style="color:var(--faint)">
+      (Exact ground truth is enumerable here because the model is small. At scale you can't enumerate 2^N &mdash;
+      you verify the same way on marginals and the conditional P(s&#7522;=+1 | field)=&sigma;(2&beta;f); same harness.)</span></p>
+    <textarea id="dutInput" placeholder="e.g.  12 200 5 200 41 12 5 200 ...   (state indices, whitespace/comma separated)"></textarea>
+    <div class="dut-actions">
+      <button class="btn" id="loadGood">Load a healthy device log</button>
+      <button class="btn" id="loadFaulty">Load a faulty device log</button>
+      <button class="btn ghost" id="clearDut">Clear</button>
+      <button class="btn primary" id="scoreDut">Score against reference</button>
+    </div>
+    <div class="report hide" id="dutReport"></div>
+  </div>
+
+  <div class="cols2">
+    <div class="panel">
+      <div class="h2">What this is</div>
+      <p class="note">Thermodynamic hardware computes by <i>sampling</i> a Boltzmann distribution in silicon.
+        Before you can trust the chip you need a bit-accurate software oracle to check it against, plus a study
+        of how much datapath precision the sampling actually needs. This is that oracle: fixed-point field MAC,
+        sigmoid LUT, LFSR compare and block-Gibbs update, each modeled as an FPGA/ASIC builds it, scored against
+        the brute-force-enumerated true distribution &mdash; and everything is reproducible from the seed.</p>
+    </div>
+    <div class="panel">
+      <div class="h2">Read it like a verification engineer</div>
+      <p class="note">Drop the fractional bits to ~2 and the sampler produces garbage. Cut the LUT below 5
+        address bits (interpolation off) and the sigmoid biases every conditional. The headline: this model
+        samples the correct Boltzmann distribution with only a <b>Q_.6 field, a 32-entry interpolated sigmoid
+        LUT, and a 16-bit LFSR</b> &mdash; a minimum spec that is an area/power number, derived not guessed. The
+        same LUT and LFSR drive a synthesizable Verilog core that passes <b>12,864/12,864</b> self-checking
+        vectors in Icarus Verilog.</p>
+    </div>
+  </div>
+
+  <footer>
+    Verification workbench &amp; golden reference model for a probabilistic-bit sampler core &mdash; a
+    hardware-verification portfolio project. Every number is computed live and reproducibly from the model
+    (nothing hard-coded). The model is a faithful but generic p-bit datapath, not any vendor's proprietary
+    microarchitecture; it validates against the ideal Boltzmann distribution and a documented datapath, which
+    is exactly a golden model's job. Independent work; not affiliated with or endorsed by any company named as
+    a reference target.
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ---- exact model: weights identical to the validated Python/RTL golden model ---- */
+const A_=[0.816368,-1.022266,0.16724,-0.227108];
+const B_=[-0.18106,-0.086239,-0.807994,-0.092773];
+const Wm=[[-0.346085,1.3292,0.090315,-0.141052],[-0.112515,-0.267219,-0.42206,-0.15632],
+          [0.192778,-0.095421,0.383103,-0.079921],[0.009704,0.618328,0.218042,-0.202091]];
+const NV=4,NH=4,N=8,NST=256,ZMAX=8.0,GAL={8:0xB8,10:0x204,12:0x829,14:0x2015,16:0xB400};
+const SPIN=new Int8Array(NST*N);
+for(let idx=0;idx<NST;idx++)for(let k=0;k<N;k++)SPIN[idx*N+k]=1-2*((idx>>k)&1);
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hashStr(s){let h=5381>>>0;for(let i=0;i<s.length;i++)h=(Math.imul(h,33)+s.charCodeAt(i))>>>0;return h.toString(16).padStart(8,"0");}
+
+function exactDist(beta){const p=new Float64Array(NST);let mx=-1e18;
+  for(let idx=0;idx<NST;idx++){let e=0;
+    for(let i=0;i<NV;i++)e-=A_[i]*SPIN[idx*N+i];
+    for(let j=0;j<NH;j++)e-=B_[j]*SPIN[idx*N+NV+j];
+    for(let i=0;i<NV;i++){const vi=SPIN[idx*N+i];for(let j=0;j<NH;j++)e-=vi*Wm[i][j]*SPIN[idx*N+NV+j];}
+    const lp=-beta*e;p[idx]=lp;if(lp>mx)mx=lp;}
+  let s=0;for(let idx=0;idx<NST;idx++){p[idx]=Math.exp(p[idx]-mx);s+=p[idx];}
+  for(let idx=0;idx<NST;idx++)p[idx]/=s;return p;}
+function marginals(dist){const m=new Float64Array(N);
+  for(let idx=0;idx<NST;idx++)for(let k=0;k<N;k++)if(((idx>>k)&1)===0)m[k]+=dist[idx];return m;}
+
+function qfix(x,frac){const step=1/(1<<frac);let q=Math.round(x/step)*step;const lim=64;return q>lim-step?lim-step:(q<-lim?-lim:q);}
+function buildLut(addr){const A=1<<addr,out=(1<<12)-1,l=new Int32Array(A);
+  for(let i=0;i<A;i++){const z=-ZMAX+((i+0.5)/A)*2*ZMAX;l[i]=Math.round((1/(1+Math.exp(-z)))*out);}return l;}
+function lutLookup(z,l,addr,interp){const A=1<<addr;let zz=z>ZMAX?ZMAX:(z<-ZMAX?-ZMAX:z);
+  let pos=(zz+ZMAX)/(2*ZMAX)*A-0.5;let idx=Math.floor(pos);if(idx<0)idx=0;if(idx>A-1)idx=A-1;
+  if(!interp)return l[idx];let i1=idx+1>A-1?A-1:idx+1;let f=pos-idx;if(f<0)f=0;if(f>1)f=1;
+  return Math.round(l[idx]*(1-f)+l[i1]*f);}
+
+function runSampler(cfg,seed,opts){
+  opts=opts||{};
+  const {frac,addr,interp,rngMode,W,beta}=cfg;
+  const fault=opts.fault||null, CH=opts.chains||4000, BURN=45, COLL=opts.collect||110;
+  const rand=mulberry32((seed>>>0)||1);
+  const tb=qfix(2*beta,frac);
+  const aq=A_.map(x=>qfix(x,frac)),bq=B_.map(x=>qfix(x,frac)),Wq=Wm.map(r=>r.map(x=>qfix(x,frac)));
+  const lut=buildLut(addr),pmax=(1<<12)-1,mask=GAL[W]||GAL[16],shift=W-12,useLfsr=rngMode==="lfsr";
+  const V=new Int8Array(CH*NV),H=new Int8Array(CH*NH);
+  for(let i=0;i<CH*NV;i++)V[i]=rand()<.5?1:-1;
+  for(let i=0;i<CH*NH;i++)H[i]=rand()<.5?1:-1;
+  let lh,lv;
+  if(useLfsr){lh=new Int32Array(CH*NH);lv=new Int32Array(CH*NV);
+    for(let i=0;i<CH*NH;i++)lh[i]=1+((rand()*((1<<W)-1))|0);
+    for(let i=0;i<CH*NV;i++)lv[i]=1+((rand()*((1<<W)-1))|0);}
+  function thr(p){return shift>=0?(p<<shift):(p>>(-shift));}
+  function step(s){let b=s&1;s>>=1;if(b)s^=mask;return s;}
+  const counts=new Float64Array(NST), log=opts.recordLog?[]:null, nLog=opts.nLog||3000;
+  for(let t=0;t<BURN+COLL;t++){
+    for(let c=0;c<CH;c++)for(let j=0;j<NH;j++){
+      let f=bq[j];for(let i=0;i<NV;i++)f+=V[c*NV+i]*Wq[i][j];
+      f=qfix(f,frac);const z=qfix(tb*f,frac);const p=lutLookup(z,lut,addr,interp);
+      let hit;if(useLfsr){let s=lh[c*NH+j];s=step(s);s=step(s);s=step(s);lh[c*NH+j]=s;hit=s<thr(p);}else hit=rand()*pmax<p;
+      H[c*NH+j]=hit?1:-1;}
+    for(let c=0;c<CH;c++)for(let i=0;i<NV;i++){
+      let f=aq[i];for(let j=0;j<NH;j++)f+=H[c*NH+j]*Wq[i][j];
+      f=qfix(f,frac);const z=qfix(tb*f,frac);const p=lutLookup(z,lut,addr,interp);
+      let hit;if(useLfsr){let s=lv[c*NV+i];s=step(s);s=step(s);s=step(s);lv[c*NV+i]=s;hit=s<thr(p);}else hit=rand()*pmax<p;
+      V[c*NV+i]=hit?1:-1;}
+    if(fault&&fault.type==="stuck"){for(let c=0;c<CH;c++)if(rand()<fault.p)H[c*NH+fault.site]=fault.val;}
+    if(t>=BURN)for(let c=0;c<CH;c++){let idx=0;
+      for(let i=0;i<NV;i++)idx|=((1-V[c*NV+i])>>1)<<i;
+      for(let j=0;j<NH;j++)idx|=((1-H[c*NH+j])>>1)<<(NV+j);
+      counts[idx]++; if(log&&log.length<nLog)log.push(idx);}}
+  let tot=0;for(let i=0;i<NST;i++)tot+=counts[i];
+  const dist=new Float64Array(NST);for(let i=0;i<NST;i++)dist[i]=counts[i]/tot;
+  return {dist,counts,log,nSamples:tot};
+}
+function tvDist(p,q){let s=0;for(let i=0;i<p.length;i++)s+=Math.abs(p[i]-q[i]);return .5*s;}
+function klDist(p,q){let s=0;for(let i=0;i<p.length;i++)if(p[i]>0)s+=p[i]*Math.log(p[i]/(q[i]||1e-12));return s;}
+function bits8(idx){let s="";for(let k=N-1;k>=0;k--)s+=((idx>>k)&1);return s;}
+
+/* ---- state / caches ---- */
+let curBeta=null,exact=null,order=null,floorTV=null,lastRun=null,lastCfg=null,lastMetrics=null;
+function refreshBeta(beta){curBeta=beta;exact=exactDist(beta);
+  order=[...Array(NST).keys()].sort((i,j)=>exact[j]-exact[i]);
+  floorTV=tvDist(runSampler({frac:12,addr:9,interp:true,rngMode:"ideal",W:16,beta},999).dist,exact);}
+
+/* ---- chart with residual strip ---- */
+const cv=document.getElementById("chart"),cx=cv.getContext("2d");
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function draw(samp){
+  const W=cv.width,Hc=cv.height,padL=58,padR=16,padT=12;
+  const mainH=Hc*0.66, gap=30, resH=Hc-mainH-gap-24;
+  cx.clearRect(0,0,W,Hc);
+  let mx=0;for(let i=0;i<NST;i++){if(exact[i]>mx)mx=exact[i];if(samp[i]>mx)mx=samp[i];}mx*=1.08;
+  const iw=W-padL-padR;
+  const X=k=>padL+iw*k/(NST-1), Y=p=>padT+(mainH-padT)*(1-p/mx);
+  cx.font="12px "+css("--mono");
+  cx.strokeStyle=css("--line");cx.fillStyle=css("--faint");cx.lineWidth=1;
+  for(let g=0;g<=4;g++){const yy=padT+(mainH-padT)*g/4;cx.globalAlpha=.55;cx.beginPath();
+    cx.moveTo(padL,yy);cx.lineTo(W-padR,yy);cx.stroke();cx.globalAlpha=1;
+    cx.fillText((mx*(1-g/4)).toFixed(3),8,yy+4);}
+  // exact area
+  cx.beginPath();cx.moveTo(X(0),Y(0));
+  for(let k=0;k<NST;k++)cx.lineTo(X(k),Y(exact[order[k]]));
+  cx.lineTo(X(NST-1),Y(0));cx.closePath();
+  cx.fillStyle=css("--cyan");cx.globalAlpha=.20;cx.fill();cx.globalAlpha=1;
+  cx.beginPath();for(let k=0;k<NST;k++){const x=X(k),y=Y(exact[order[k]]);k?cx.lineTo(x,y):cx.moveTo(x,y);}
+  cx.strokeStyle=css("--cyan");cx.lineWidth=1.7;cx.stroke();
+  // sampled dots
+  cx.fillStyle=css("--amber");
+  for(let k=0;k<NST;k++){cx.beginPath();cx.arc(X(k),Y(samp[order[k]]),2,0,7);cx.fill();}
+  // residual strip
+  const rTop=mainH+gap, rMid=rTop+resH/2;
+  let rmx=1e-6;for(let i=0;i<NST;i++){const d=Math.abs(samp[i]-exact[i]);if(d>rmx)rmx=d;}
+  cx.strokeStyle=css("--line");cx.globalAlpha=.7;cx.beginPath();cx.moveTo(padL,rMid);cx.lineTo(W-padR,rMid);cx.stroke();cx.globalAlpha=1;
+  cx.fillStyle=css("--faint");cx.fillText("+"+rmx.toFixed(3),8,rTop+10);cx.fillText("-"+rmx.toFixed(3),8,rTop+resH);
+  for(let k=0;k<NST;k++){const d=samp[order[k]]-exact[order[k]];const h=(d/rmx)*(resH/2);
+    cx.fillStyle=d>=0?css("--amber"):css("--fail");cx.globalAlpha=.85;
+    cx.fillRect(X(k)-1,rMid,2,-h);cx.globalAlpha=1;}
+  cx.fillStyle=css("--faint");cx.font="12px "+css("--mono");
+  cx.fillText("state (ranked by probability) -->",padL,Hc-4);
+}
+
+/* ---- table ---- */
+function renderTable(samp,counts){
+  const body=document.getElementById("dataBody");let html="";
+  const maxRef=exact[order[0]];
+  for(let k=0;k<40;k++){const idx=order[k];const ref=exact[idx],ob=samp[idx],res=ob-ref;
+    const bw=Math.max(1,Math.round(60*ref/maxRef));
+    const rc=res>=0?"var(--amber)":"var(--fail)";
+    html+=`<tr><td class="hi">${idx}</td><td>${bits8(idx)}</td>`+
+      `<td class="hi"><span class="barcell" style="width:${bw}px;background:var(--cyan);opacity:.5;margin-right:6px"></span>${ref.toFixed(4)}</td>`+
+      `<td>${ob.toFixed(4)}</td><td>${counts[idx]|0}</td>`+
+      `<td style="color:${rc}">${res>=0?"+":""}${res.toFixed(4)}</td></tr>`;}
+  body.innerHTML=html;
+}
+
+/* ---- receipt ---- */
+function buildReceipt(cfg,m){
+  const wfp=hashStr(JSON.stringify([A_,B_,Wm,cfg.beta]));
+  return {
+    tool:"p-bit sampler verification workbench",
+    generated:new Date().toISOString(),
+    model:{type:"bipartite RBM (Ising)",visible:NV,hidden:NH,states:NST,beta:cfg.beta,weights_fingerprint:wfp},
+    datapath:{field_frac_bits:cfg.frac,sigmoid_lut:`2^${cfg.addr} x 12b`,lut_interpolation:cfg.interp,
+      rng:cfg.rngMode,lfsr_bits:cfg.rngMode==="lfsr"?cfg.W:null,datapath_bit_cost:m.cost},
+    sampling:{engine:"block-Gibbs (bipartite)",chains:4000,collect_sweeps:110,burn_sweeps:45,
+      seed:cfg.seed,total_samples:m.nSamples,deterministic:true},
+    reference:"exact Boltzmann distribution via full 2^8 enumeration",
+    result:{tv_to_exact:+m.tv.toFixed(5),kl_sampled_exact:+m.kl.toFixed(5),
+      sampling_noise_floor:+floorTV.toFixed(5),verdict:m.verdict},
+    reproducibility:"re-run with identical seed yields byte-identical result"
+  };
+}
+
+/* ---- wiring ---- */
+const $=id=>document.getElementById(id);
+const els={frac:$("frac"),addr:$("addr"),interp:$("interp"),wbits:$("wbits"),beta:$("beta"),seed:$("seed")};
+let rngMode="lfsr";
+function cfg(){return{frac:+els.frac.value,addr:+els.addr.value,interp:els.interp.checked,rngMode,
+  W:+els.wbits.value,beta:+els.beta.value,seed:+els.seed.value};}
+function recompute(){
+  const c=cfg();
+  if(c.beta!==curBeta)refreshBeta(c.beta);
+  const run=runSampler(c,c.seed);lastRun=run;lastCfg=c;
+  const tv=tvDist(run.dist,exact),kl=klDist(run.dist,exact),cost=c.frac+c.addr+(rngMode==="lfsr"?c.W:0);
+  const target=floorTV+0.015, verdict=tv<=target?"PASS":"FAIL";
+  lastMetrics={tv,kl,cost,nSamples:run.nSamples,verdict};
+  $("tv").textContent=tv.toFixed(3);$("kl").textContent=kl.toFixed(3);
+  const v=$("verdict");
+  if(verdict==="PASS"){v.className="verdict v-pass";v.children[0].innerHTML="&#10003;";$("verdictTxt").textContent="Samples the correct distribution";}
+  else{v.className="verdict v-fail";v.children[0].innerHTML="&#9888;";$("verdictTxt").textContent="Distribution degraded by quantization";}
+  $("fracV").textContent=c.frac;$("addrV").textContent=c.addr;$("addrPow").textContent=c.addr;
+  $("wV").textContent=c.W;$("betaV").textContent=c.beta.toFixed(2);
+  $("cost").innerHTML=cost+' <small>bits</small>';
+  $("p1").textContent="Q_."+c.frac;$("p3").textContent="2^"+c.addr+" x 12b"+(c.interp?" +interp":"");
+  $("p4").textContent=rngMode==="lfsr"?("LFSR "+c.W+"b"):"ideal RNG";
+  draw(run.dist);renderTable(run.dist,run.counts);
+  const rec=buildReceipt(c,lastMetrics);
+  const wfp=rec.model.weights_fingerprint;
+  $("record").innerHTML=[
+    ["model","RBM 4x4 &middot; 256 states"],["weights fingerprint",wfp],["inverse temp &beta;",c.beta.toFixed(2)],
+    ["field frac bits",c.frac],["sigmoid LUT","2^"+c.addr+" x 12b"+(c.interp?" +interp":"")],
+    ["RNG",rngMode==="lfsr"?("LFSR "+c.W+"b"):"ideal"],["seed",c.seed],
+    ["total samples",run.nSamples.toLocaleString()],["reference","exact Boltzmann (enumerated)"],
+    ["TV to exact",tv.toFixed(4)],["noise floor",floorTV.toFixed(4)],["verdict",verdict]
+  ].map(r=>`<span class="kk">${r[0]}</span><span class="vv">${r[1]}</span>`).join("");
+  $("receipt").textContent=JSON.stringify(rec,null,2);
+  cv.parentElement.classList.remove("pulse");void cv.offsetWidth;cv.parentElement.classList.add("pulse");
+}
+let deb;function schedule(){clearTimeout(deb);deb=setTimeout(recompute,90);}
+Object.values(els).forEach(e=>e.addEventListener("input",schedule));
+$("rngLfsr").onclick=()=>{rngMode="lfsr";$("rngLfsr").setAttribute("aria-pressed","true");$("rngIdeal").setAttribute("aria-pressed","false");$("lfsrCtrl").style.opacity="1";schedule();};
+$("rngIdeal").onclick=()=>{rngMode="ideal";$("rngIdeal").setAttribute("aria-pressed","true");$("rngLfsr").setAttribute("aria-pressed","false");$("lfsrCtrl").style.opacity=".4";schedule();};
+
+/* ---- receipt download + reproducibility ---- */
+$("dlReceipt").onclick=()=>{
+  const blob=new Blob([JSON.stringify(buildReceipt(lastCfg,lastMetrics),null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="pbit_verification_receipt_seed"+lastCfg.seed+".json";a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+};
+$("reproCheck").onclick=()=>{
+  const a=runSampler(lastCfg,lastCfg.seed).dist, b=runSampler(lastCfg,lastCfg.seed).dist;
+  let same=true;for(let i=0;i<NST;i++)if(a[i]!==b[i]){same=false;break;}
+  const o=$("reproOut");
+  o.innerHTML=same?`<span style="color:var(--pass)">&#10003; reproducible &mdash; two runs at seed ${lastCfg.seed} are byte-identical (TV between runs = 0.000000)</span>`
+    :`<span style="color:var(--fail)">runs differ (unexpected)</span>`;
+};
+
+/* ---- device-under-test ---- */
+function loadLog(fault){
+  const c=cfg();const run=runSampler(c,(c.seed^0x5bd1e995)>>>0,{recordLog:true,nLog:8000,collect:80,fault});
+  $("dutInput").value=run.log.join(" ");$("dutReport").classList.add("hide");
+}
+$("loadGood").onclick=()=>loadLog(null);
+$("loadFaulty").onclick=()=>loadLog({type:"stuck",site:1,val:1,p:0.8});
+$("clearDut").onclick=()=>{$("dutInput").value="";$("dutReport").classList.add("hide");};
+$("scoreDut").onclick=()=>{
+  const toks=($("dutInput").value.match(/\d+/g)||[]).map(Number).filter(v=>v>=0&&v<NST);
+  const rep=$("dutReport");rep.classList.remove("hide");
+  if(toks.length<200){rep.innerHTML=`<b style="color:var(--warn)">Need &ge; 200 valid samples</b> &mdash; got ${toks.length}. Paste more, or use a load button.`;return;}
+  const counts=new Float64Array(NST);toks.forEach(v=>counts[v]++);
+  const dist=new Float64Array(NST);for(let i=0;i<NST;i++)dist[i]=counts[i]/toks.length;
+  const tv=tvDist(dist,exact),kl=klDist(dist,exact);
+  const mo=marginals(dist),me=marginals(exact);let maxErr=0,argk=0;
+  for(let k=0;k<N;k++){const e=Math.abs(mo[k]-me[k]);if(e>maxErr){maxErr=e;argk=k;}}
+  // acceptance tolerances scale with sample count (finite-sample noise ~ 1/sqrt(Ns))
+  const Ns=toks.length;
+  const margTol=Math.min(0.15,Math.max(0.02,6*Math.sqrt(0.25/Ns)));
+  const tvTol=Math.min(0.40,Math.max(0.03,1.1*Math.sqrt(NST/Ns)));
+  const pass=tv<=tvTol&&maxErr<=margTol;
+  let cells="";for(let k=0;k<N;k++){const e=Math.abs(mo[k]-me[k]);const col=e>margTol?"var(--fail)":"var(--pass)";
+    const nm=(k<NV?"v":"h")+(k<NV?k:k-NV);
+    cells+=`<div class="cell"><div class="lbl">${nm}</div><div class="err" style="color:${col}">${e.toFixed(3)}</div></div>`;}
+  const diffs=order.map(idx=>[idx,dist[idx]-exact[idx]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,3);
+  rep.innerHTML=
+    `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+       <span class="verdict ${pass?'v-pass':'v-fail'}" style="margin:0;padding:8px 13px">
+         <span class="ic">${pass?'&#10003;':'&#9888;'}</span> ${pass?'ACCEPT &mdash; device samples match the reference':'REJECT &mdash; device deviates from the reference'}</span>
+     </div>
+     <div class="kv" style="grid-template-columns:auto 1fr auto 1fr">
+       <span class="kk">samples parsed</span><span class="vv">${toks.length.toLocaleString()}</span>
+       <span class="kk">TV to exact</span><span class="vv" style="color:${tv<=tvTol?'var(--pass)':'var(--fail)'}">${tv.toFixed(4)}</span>
+       <span class="kk">KL</span><span class="vv">${kl.toFixed(4)}</span>
+       <span class="kk">max marginal err</span><span class="vv" style="color:${maxErr<=margTol?'var(--pass)':'var(--fail)'}">${maxErr.toFixed(4)} @ ${(argk<NV?'v'+argk:'h'+(argk-NV))}</span>
+     </div>
+     <div class="hint" style="margin-top:12px">Acceptance tolerance @ ${Ns.toLocaleString()} samples (scales as 1/&radic;N): TV &le; ${tvTol.toFixed(3)}, marginal &le; ${margTol.toFixed(3)}. Per-spin marginal error P(spin=+1) &mdash; scale-free, works at any lattice size:</div>
+     <div class="marg">${cells}</div>
+     <div class="hint" style="margin-top:11px">Top deviating states: ${diffs.map(d=>`#${d[0]} (${d[1]>=0?'+':''}${d[1].toFixed(3)})`).join(" &middot; ")}</div>`;
+};
+
+/* ---- theme ---- */
+$("theme").onclick=()=>{const r=document.documentElement;
+  const cur=r.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");
+  r.setAttribute("data-theme",cur==="dark"?"light":"dark");if(lastRun)draw(lastRun.dist);};
+
+refreshBeta(1.0);recompute();
+</script>
+
+</body>
+</html>

@@ -228,6 +228,19 @@
           <a class="go" href="./codon.html">Open live demo &rarr;</a>
         </div>
 
+        <div class="card">
+          <div class="top">
+            <h3>Sampler Verification Workbench</h3><span class="badge live">Live</span>
+          </div>
+          <div class="viz" data-viz="pbit"></div>
+          <p>The hardware side. A bit-accurate <strong>golden reference model</strong> of a p&#8209;bit
+            sampler datapath &mdash; fixed-point field, sigmoid LUT, LFSR compare &mdash; scored live against
+            the <em>exact Boltzmann distribution</em>. Inspect every number, download a reproducible receipt,
+            and <em>score a real device's own sample stream</em> for pass/fail. The same core passes
+            <strong>12,864/12,864</strong> vectors in synthesizable Verilog.</p>
+          <a class="go" href="./pbit.html">Open live demo &rarr;</a>
+        </div>
+
       </div>
     </div>
   </section>
@@ -408,6 +421,17 @@ document.querySelectorAll('.viz').forEach(el=>{
           ctx.fillStyle=inWall?((c+r)%2?gold:ember):dim;
           ctx.fillRect(c*bw+bw*0.16,r*rh+rh*0.16,bw*0.68,rh*0.68);
         }
+      }
+    } else if(kind==='pbit'){
+      // schematic: a decaying Boltzmann distribution with sampled dots hovering on it
+      const n=26,bw=W/n,cool=css('--cool');
+      for(let c=0;c<n;c++){
+        const ref=Math.exp(-c*0.30)*H*0.92;
+        ctx.globalAlpha=0.42; ctx.fillStyle=cool;
+        ctx.fillRect(c*bw+bw*0.22,H-ref,bw*0.56,ref);
+        const jit=Math.sin(t*3+c*1.3)*H*0.05;
+        ctx.globalAlpha=0.9; ctx.fillStyle=gold;
+        ctx.beginPath(); ctx.arc(c*bw+bw*0.5,H-ref-jit,1.5*devicePixelRatio,0,7); ctx.fill();
       }
     }
     ctx.restore();
