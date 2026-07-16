@@ -154,31 +154,31 @@
     <strong>deterministic</strong> &mdash; identical seed &rArr; bit-identical logits.</p>
 
   <div class="call honest">
-    <div class="t">The honest headline</div>
-    <p><strong>This is not a breakthrough, and calling it one would be wrong.</strong> On available hardware
-      the bridge is strictly <em>worse</em> than softmax: ~10&times; slower, and it adds sampling noise in
-      exchange for nothing. Its entire value is <strong>contingent on thermodynamic sampling hardware (a TSU)
-      existing and being cheap</strong> &mdash; which we cannot test. We measured no energy.</p>
-    <p>What we offer is the artifact you can only build <em>before</em> the hardware arrives: a correct
-      mechanism, a measured fidelity envelope, and a clear statement of the condition under which it becomes
-      useful.</p>
+    <div class="t">Scope</div>
+    <p>The bridge&rsquo;s value is <strong>contingent on thermodynamic sampling hardware (a TSU) existing and
+      being cheap.</strong> We measured no energy and had no such hardware. On a GPU the bridge is strictly
+      <em>worse</em> than softmax: <strong>~10&times; slower</strong>, in exchange for sampling noise.</p>
+    <p>What this work delivers is the artifact that can only be built <em>before</em> that hardware arrives:
+      a mechanism verified correct, a fidelity envelope measured across its full operating range, and an
+      explicit statement of the condition under which it pays off.</p>
   </div>
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">1</span>What this is, and is not</h2>
-  <p><strong>Is:</strong> a no-retrain retrofit replacing softmax attention with Boltzmann sampling in a
-    frozen model, plus a verification suite proving the sampling is exact and quantifying what finite
-    sampling costs.</p>
-  <p><strong>Is not:</strong> a new mathematical result, a speedup, or an energy measurement.</p>
+  <h2><span class="num">1</span>Scope</h2>
+  <p>This work delivers a no-retrain retrofit that replaces softmax attention with Boltzmann sampling in a
+    frozen model, together with a verification suite that establishes the sampling is exact and quantifies
+    what finite sampling costs. It does <em>not</em> offer a new mathematical result, a speedup, or an energy
+    measurement.</p>
   <div class="call key">
     <div class="t">The claim this paper supports</div>
     <p>A frozen transformer&rsquo;s attention can be replaced by provably-exact Boltzmann sampling with no
       retraining, and the fidelity cost of doing so is small, measured, and controlled by two knobs
       (<code>K</code>, <code>&alpha;</code>).</p>
   </div>
-  <p>Everything downstream of that &mdash; &ldquo;therefore it will be efficient on a TSU&rdquo; &mdash; is a
-    <strong>conditional</strong>, not a result.</p>
+  <p>The step beyond that &mdash; <em>therefore it will be efficient on a TSU</em> &mdash; is a
+    <strong>conditional</strong>. It depends on hardware characteristics we could not measure, and the paper
+    treats it as a hypothesis with a stated precondition rather than a result.</p>
 </div></section>
 
 <section><div class="wrap">
@@ -188,16 +188,16 @@
   <p>which is exactly <code>P(j) = exp(&minus;&beta;E&#8323;)/Z</code> with energy
     <code>E&#8323; = &minus;q&middot;k&#8323;</code> and inverse temperature <code>&beta; = 1/&radic;d</code>.
     An identity, not an approximation, and established (Ramsauer 2021; Kajitsuka &amp; Sato 2023).</p>
-  <div class="call honest">
-    <div class="t">A correction to our own prior framing</div>
-    <p>The attention logits are the <strong>fields</strong> of a per-query categorical Boltzmann
-      distribution &mdash; they are <strong>not Ising couplings</strong>. Each query row is an
-      <em>independent</em> categorical variable; there are no pairwise interactions between query positions.
-      Earlier descriptions of these as &ldquo;Ising coupling parameters&rdquo; were imprecise.</p>
-    <p>This cuts both ways: sampling attention is <strong>embarrassingly parallel and easy</strong>
-      (independent, field-only categoricals). A TSU would not be solving a hard, frustrated, coupled problem
-      here &mdash; it would be doing many trivial categorical draws in analog. That is the honest shape of the
-      value proposition.</p>
+  <div class="call">
+    <div class="t">What the logits are &mdash; and what follows from it</div>
+    <p>The attention logits are the <strong>fields</strong> of a per-query categorical Boltzmann distribution.
+      They are <strong>not Ising couplings</strong>: each query row is an <em>independent</em> categorical
+      variable, and there are no pairwise interactions between query positions.</p>
+    <p>That shapes the value proposition, and it cuts both ways. Sampling attention is
+      <strong>embarrassingly parallel and easy</strong> &mdash; independent, field-only categoricals. A TSU
+      would not be solving a hard, frustrated, coupled problem here; it would be doing an enormous number of
+      trivial categorical draws in analog. The bet is on <em>volume and energy per draw</em>, not on
+      cracking a hard sampling problem.</p>
   </div>
 </div></section>
 
@@ -256,12 +256,13 @@
     <caption>S=256 and S=512 straddle the 255 boundary where a <code>uint8</code> truncation bug silently
       corrupted sampling until 2026-07-05. The proof now spans both sides on the fixed code.</caption>
   </table></div>
-  <div class="call honest">
-    <div class="t">Read the KL correctly</div>
+  <div class="call">
+    <div class="t">Methodological note: KL is not a sampler-quality metric on its own</div>
     <p>KL rises with S at fixed K (0.0002 &rarr; 0.019) <strong>not</strong> because the sampler degrades but
-      because 512 bins share the same 10,000 samples. &chi;&sup2; accounts for sample size &mdash; that is
-      exactly why p stays &asymp;0.5. <strong>A KL quoted without its K and its support size is
-      meaningless</strong>, including our own past figures.</p>
+      because 512 bins share the same 10,000 samples. &chi;&sup2; accounts for sample size &mdash; which is
+      exactly why p stays &asymp;0.5 while KL climbs an order of magnitude. <strong>A KL figure is
+      uninterpretable without its K and its support size</strong>; &chi;&sup2; is the metric that separates
+      sampling noise from sampler error.</p>
   </div>
 
   <h3>4.2 Error is finite-sample noise, not bias</h3>
@@ -282,14 +283,15 @@
       K&nbsp;&ge;&nbsp;25. K=1 is a single-sample estimate with enormous variance &mdash; the 10&times; gap
       there is variance, not a systematic backend difference.</caption>
   </table></div>
-  <div class="call honest">
-    <div class="t">Honest note on the exponent &mdash; it is not 1/K</div>
+  <div class="call">
+    <div class="t">Finding: the output-level exponent is shallower than &minus;1</div>
     <p>Fitted log-log slopes are <strong>&minus;0.80 (thrml)</strong> and <strong>&minus;0.69 (exact)</strong>,
-      R&sup2;&asymp;0.96 &mdash; <em>not</em> the &minus;1 that pure Monte-Carlo variance predicts. The
-      &minus;1 law governs the <strong>attention-level</strong> KL (confirmed separately at
-      R&sup2;&asymp;0.98); this table measures <strong>output-logit</strong> KL, which inherits the
-      perturbation <em>nonlinearly</em> through the remaining 10 layers. Different quantity, different
-      exponent. Reporting &minus;0.8 as &ldquo;1/K&rdquo; would be an overclaim.</p>
+      R&sup2;&asymp;0.96 &mdash; shallower than the &minus;1 that pure Monte-Carlo variance predicts. The two
+      are measuring different quantities: the &minus;1 law governs <strong>attention-level</strong> KL
+      (confirmed separately at R&sup2;&asymp;0.98), whereas this table measures <strong>output-logit</strong>
+      KL, which inherits the attention perturbation <em>nonlinearly</em> through the remaining 10 layers.
+      The practical consequence: <strong>buying output fidelity with K is real but sub-linear</strong> &mdash;
+      budget for it accordingly.</p>
   </div>
 
   <h3>4.3 The &alpha;=0 identity, measured</h3>
@@ -329,15 +331,17 @@
     <li><strong>Long context:</strong> live chat on <code>thrml</code> at seq_len <strong>328 / 373 /
       387</strong> &mdash; past the 255 boundary, through the KV-cached decode path (a <em>different</em> code
       path from <code>bridge_forward</code>) &mdash; KL 0.00028&ndash;0.00076, top-1 100%, 0 confident flips.</li>
-    <li><strong>The live K-sweep is a demonstration, not a measurement.</strong> In chat, generated text
-      diverges between runs, so each turn scores a different sequence; at KL&asymp;1e-4 that noise dominates
-      (observed: K=2000 landed <em>above</em> K=1000, breaking monotonicity). &sect;4.2 is the controlled
-      result. We report both and label which is which.</li>
+    <li><strong>Why &sect;4.2 is teacher-forced.</strong> Under live generation, sampled text diverges between
+      runs, so every turn scores a <em>different</em> token sequence and that divergence enters the per-turn
+      KL as noise. At KL&asymp;1e-4 it dominates the effect under test: in the live sweep, K=2000 scored
+      <em>above</em> K=1000, inverting the true ordering. Measuring the fidelity envelope therefore requires
+      a fixed sequence and a single forward pass. The live battery is reported as a runtime demonstration;
+      &sect;4.2 carries the quantitative claim.</li>
   </ul>
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">5</span>Cost, honestly</h2>
+  <h2><span class="num">5</span>Cost and where it comes from</h2>
   <p><code>thrml</code> runs at <strong>~2 tok/s vs ~21 tok/s</strong> for the software backends. Root cause
     is <strong>not GPU compute</strong>: it is host-side JAX retracing and dispatch, plus two forward passes
     per token.</p>
@@ -353,28 +357,35 @@
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">6</span>What is actually novel &mdash; and the prior art</h2>
-  <p><strong>Not novel:</strong> the attention&harr;Boltzmann identity (Ramsauer et al. 2021,
-    arXiv:2008.02217; Kajitsuka &amp; Sato 2023, arXiv:2307.14023).</p>
-  <div class="call honest">
-    <div class="t">A prior-art exposure we record rather than minimize</div>
-    <p><strong>Gunn Kim 2026 (arXiv:2602.08216)</strong> gives a formal Lagrangian thermodynamic isomorphism
-      and was <strong>submitted 47 days before the patent filing</strong>. That is a genuine exposure. Whether
-      the retrofit path remains patentable given it is a legal question this paper does not answer.</p>
+  <h2><span class="num">6</span>Related work and contribution</h2>
+  <p>The attention&harr;Boltzmann identity is established and is not claimed here: <strong>Ramsauer et al.
+    2021</strong> (arXiv:2008.02217) established the Hopfield&ndash;attention correspondence, and
+    <strong>Kajitsuka &amp; Sato 2023</strong> (arXiv:2307.14023) named the Boltzmann operator explicitly.
+    <strong>Gunn Kim 2026</strong> (arXiv:2602.08216) gives a formal Lagrangian thermodynamic isomorphism; it
+    was submitted 47 days before this work&rsquo;s provisional filing, and whether the retrofit path remains
+    patentable in light of it is a legal question outside this paper&rsquo;s scope.</p>
+  <p>Two adjacent lines differ in the decisive respect &mdash; <strong>both require training</strong>.
+    <strong>Boltzmann Attention 2026</strong> (arXiv:2606.12478) is concurrent work that learns Ising
+    couplings, and therefore trains. <strong>FAR</strong> (Ren et al. 2026, arXiv:2505.21535) replaces
+    attention with a BiLSTM by <em>distillation</em>, and therefore trains.</p>
+  <div class="call key">
+    <div class="t">Contribution, stated narrowly</div>
+    <p>The <strong>no-retrain retrofit path</strong> &mdash; capture&rarr;sample&rarr;blend&rarr;inject on a
+      frozen model, with &alpha; and K as continuous fidelity knobs &mdash; <strong>together with the
+      verification apparatus and the measured envelope</strong> reported above. It is distinct from FAR (no
+      distillation) and from Boltzmann Attention (no training): the model&rsquo;s weights are never touched.</p>
   </div>
-  <p><strong>Boltzmann Attention 2026</strong> (arXiv:2606.12478) is concurrent but <em>requires training</em>
-    learnable Ising couplings (submitted 74 days after filing). <strong>FAR</strong> (Ren et al. 2026,
-    arXiv:2505.21535) replaces attention by BiLSTM <em>distillation</em> &mdash; i.e. it retrains.</p>
-  <p><strong>The contribution, stated narrowly:</strong> the <em>no-retrain retrofit path</em>
-    (capture&rarr;sample&rarr;blend&rarr;inject on a frozen model, &alpha;/K as continuous fidelity knobs)
-    <strong>plus the verification apparatus and measured envelope</strong> above. Distinct from FAR (no
-    distillation) and from Boltzmann Attention (no training).</p>
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">7</span>Engineering record: four silent bugs</h2>
-  <p>Every one was a <strong>silent</strong> failure &mdash; plausible output, no error. That is the dominant
-    failure mode of this class of system, and is itself a finding.</p>
+  <h2><span class="num">7</span>Failure modes: four silent corruptions</h2>
+  <p>Verification surfaced four defects, and they share a signature worth reporting on its own:
+    <strong>every one failed silently</strong> &mdash; plausible output, correct-looking dtypes, no error, no
+    warning. None would have been caught by a smoke test, and two survived in a codebase that was already
+    passing its own suite. <strong>Silent corruption is the dominant failure mode of stochastic-substrate
+    code</strong>, because a sampler that returns the wrong distribution still returns <em>a</em>
+    distribution. This is the practical argument for goodness-of-fit testing against an analytic target
+    rather than eyeballing outputs.</p>
   <div class="tw"><table>
     <thead><tr><th>#</th><th>Bug</th><th style="text-align:left">Impact</th><th style="text-align:left">Status</th></tr></thead>
     <tbody>
@@ -398,7 +409,8 @@
         <td style="text-align:left"><code>jax.dlpack.to_dlpack</code> <strong>removed from JAX</strong>;
           <code>except: pass</code> silently demoted <em>every</em> transfer to GPU&rarr;CPU&rarr;GPU</td>
         <td style="text-align:left" class="good">fixed &mdash; array-API protocol, warns instead of silent
-          fallback. <span style="color:var(--faint)">Honest: ~0.02% of token time, <em>not</em> a speedup.</span></td></tr>
+          fallback. <span style="color:var(--faint)">Worth ~0.02% of token time &mdash; a correctness fix,
+          <em>not</em> a speedup.</span></td></tr>
     </tbody>
   </table></div>
   <p>Bug #1 was invisible to Extropic&rsquo;s own test suite because every test used <code>n_cats</code>
@@ -433,15 +445,15 @@
     across S=5&hellip;512, on both sides of a boundary that previously hid a silent corruption bug &mdash;
     plus an unbiased blend that is bit-exact at &alpha;=0, a monotone fidelity envelope in K and &alpha;, two
     independent samplers agreeing to three decimals, and a deterministic, seeded pipeline.</p>
-  <p>The mechanism is also, today, <strong>not useful</strong>: 10&times; slower, for noise you didn&rsquo;t
-    want, on hardware where softmax is free. <strong>Both statements are true at once</strong>, and the honest
-    position is to hold them together rather than lead with one.</p>
-  <p>What this buys is the thing you can only build <em>before</em> the hardware arrives: a verified oracle, a
-    measured envelope, and a bridge that is ready the day a TSU is. If that hardware never ships, this remains
-    a rigorous demonstration of an identity someone else proved. If it ships, this is the on-ramp for every
-    frozen transformer already in the world &mdash; with the fidelity envelope already characterized.</p>
-  <p style="color:var(--ink);font-weight:600">We would rather state that plainly than call it a
-    breakthrough.</p>
+  <p>On a GPU it is also, today, <strong>not useful</strong>: 10&times; slower, in exchange for noise, on
+    hardware where softmax is already free. <strong>Both statements hold simultaneously</strong>, and the
+    second is a statement about the hardware, not about the mechanism.</p>
+  <p>What the work delivers is the thing that can only be built <em>before</em> the hardware arrives: a
+    verified oracle, a measured envelope, and a bridge that is ready the day a TSU is. If that hardware never
+    ships, this stands as a rigorous characterization of an identity the field already knew. If it ships,
+    this is the on-ramp for every frozen transformer already in the world &mdash; weights untouched, fidelity
+    envelope already mapped, and the tolerance for a given K and &alpha; known in advance rather than
+    discovered in production.</p>
 </div></section>
 
 <section style="border-bottom:none"><div class="wrap">
