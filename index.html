@@ -97,6 +97,8 @@
   .badge.live{color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 45%,transparent);
     background:color-mix(in srgb,var(--ok) 12%,transparent)}
   .badge.dev{color:var(--dim);border:1px solid var(--line2)}
+  .badge.paper{color:var(--cool);border:1px solid color-mix(in srgb,var(--cool) 45%,transparent);
+    background:color-mix(in srgb,var(--cool) 12%,transparent)}
   .card p{margin:0;font-size:14px;color:var(--ink-dim);flex:1}
   .card .go{font-family:var(--mono);font-size:12.5px;color:var(--gold)}
   .card .go.muted{color:var(--faint)}
@@ -239,6 +241,20 @@
             and <em>score a real device's own sample stream</em> for pass/fail. The same core passes
             <strong>12,864/12,864</strong> vectors in synthesizable Verilog.</p>
           <a class="go" href="./pbit.html">Open live demo &rarr;</a>
+        </div>
+
+        <div class="card">
+          <div class="top">
+            <h3>Paper &mdash; Verified Boltzmann Attention</h3><span class="badge paper">Paper</span>
+          </div>
+          <div class="viz" data-viz="pbit"></div>
+          <p>The full writeup on <strong>ThermoBridge / TASB</strong>: a frozen LLaMA&#8209;3.2&#8209;3B running
+            with its attention replaced by <strong>provably-exact Boltzmann sampling</strong>, no retraining.
+            &chi;&sup2; goodness&#8209;of&#8209;fit against the analytically enumerated target
+            (<strong>mean p &asymp; 0.497</strong>), a blend that is <strong>bit-exact at &alpha;=0</strong>,
+            the measured fidelity envelope in K and &alpha; &mdash; and an honest accounting of the ~10&times;
+            cost and the hardware it is contingent on. <em>It declines to call itself a breakthrough.</em></p>
+          <a class="go" href="./paper.html">Read the paper &rarr;</a>
         </div>
 
       </div>
