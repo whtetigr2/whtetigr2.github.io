@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>&#128293;</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2788%27>&#128293;</text></svg>">
 <title>Thermodynamic Worldgen — turn the knobs</title>
 <style>
   :root{
@@ -29,7 +29,11 @@
 
   .pane{position:fixed;z-index:7;background:rgba(21,28,34,.94);border:1px solid var(--line);
         border-radius:4px;padding:12px 13px}
-  #ctrl{left:14px;top:96px;width:250px;max-height:calc(100vh - 130px);overflow-y:auto}
+  /* The cap must clear the classical panel, which is fixed at bottom:14px and ~160px tall.
+     An earlier calc(100vh - 130px) let this panel grow to 100vh-34px once both schedule rows
+     appeared, and #cls — later in the DOM at the same z-index — painted over its last two
+     controls. 96 top + 14 bottom inset + 160 panel + 20 gap = 290. */
+  #ctrl{left:14px;top:96px;width:250px;max-height:calc(100vh - 290px);overflow-y:auto}
 
   /* Dual-thumb band slider: two range inputs stacked on one track. The inputs are
      pointer-transparent except for their thumbs, so both remain grabbable and both keep
@@ -123,20 +127,16 @@
       <input type="range" id="sk"  min="300" max="9000" value="2830" aria-label="Correlation length, low bound">
       <input type="range" id="sk2" min="300" max="9000" value="2830" aria-label="Correlation length, high bound">
     </div>
-    <div class="hint">Drag the second dot out to make it a <b>band</b>. &kappa; also moves the
-      wall, which sits at (&kappa;&sup2;+X)/X &mdash; so a &kappa; band is really a band in the
-      margin opposite, and near the wall it drives the quench on its own. Arrow keys step
-      0.0001; dragging is coarse.</div>
+    <div class="hint">Drag the second dot out to make it a <b>band</b>. &kappa; also moves the wall,
+      so a &kappa; band is really a margin band. Arrow keys step 0.0001.</div>
   </div>
 
   <div class="k osc" id="okp">
     <div class="row"><span class="nm">&kappa; period</span><span class="vl" id="vkp">80</span></div>
     <input type="range" id="skp" min="10" max="800" value="80">
-    <div class="hint">Sweeps per full cycle &mdash; not seconds, so a schedule reproduces whatever
-      the framerate. How much this does depends entirely on where the coupling sits: at 1.00 a
-      full &kappa; swing never crosses the wall and barely registers, but at 1.02&ndash;1.10 the
-      same swing crosses it and lag-1 goes from 0.34 to 0.99. That is why the knob feels
-      inconsistent &mdash; it is a margin knob wearing a length label.</div>
+    <div class="hint">Sweeps per cycle, not seconds. What it does depends on where the coupling
+      sits: at 1.00 a full &kappa; swing never crosses the wall; at 1.02&ndash;1.10 it does, and
+      lag-1 goes 0.34 &rarr; 0.99.</div>
   </div>
 
   <div class="k">
@@ -146,23 +146,18 @@
       <input type="range" id="sc"  min="2000" max="16000" value="10000" aria-label="Coupling scale, low bound">
       <input type="range" id="sc2" min="2000" max="16000" value="10000" aria-label="Coupling scale, high bound">
     </div>
-    <div class="hint">Multiplies every off-diagonal while the diagonal stays put. Below the
-      <b>dominance wall</b> opposite you are sampling. Just past it the chain stops having an
-      equilibrium and quenches into two-level domains &mdash; that is the slow morphing coastline,
-      and it freezes within about a hundred sweeps. Push further and every cell rails to the
-      same sign and the world goes flat. The wall moves with &kappa;.
-      <b>The usable window is about 0.005 wide</b>, so watch the margin readout opposite and
-      use arrow keys &mdash; a step is 0.0001.</div>
+    <div class="hint">Multiplies every off-diagonal; the diagonal stays put. Below the
+      <b>dominance wall</b> you are sampling. Just past it the chain quenches into two-level
+      domains; push further and the world goes flat. <b>The usable window is only ~0.005
+      wide</b> &mdash; watch the margin readout and step with arrow keys.</div>
   </div>
 
   <div class="k osc" id="ocp">
     <div class="row"><span class="nm">Coupling period</span><span class="vl" id="vcp">80</span></div>
     <input type="range" id="scp" min="10" max="800" value="80">
-    <div class="hint">A band straddling the wall is a repeating quench, and it is the only thing
-      here that makes large structure. Two rules, both measured: put the <b>low end well under
-      the wall</b> &mdash; 0.95 works, 1.05 goes flat at every period tried &mdash; and keep the
-      period near <b>80 sweeps</b>; by 500 it collapses. At 0.95&ndash;1.13 the field reaches
-      lag-1 0.99 with only 3% of cells on the rail, against 0.26 for the same model held still.</div>
+    <div class="hint">A band straddling the wall is a repeating quench &mdash; the only thing here
+      that makes large structure. Two measured rules: <b>low end well under the wall</b> (0.95 works,
+      1.05 goes flat) and period near <b>80</b>. Gets lag-1 0.99 against 0.26 held still.</div>
   </div>
 
   <div class="k osc" id="owave">
@@ -197,9 +192,9 @@
   <div class="k">
     <div class="row"><span class="nm">Sampling speed</span><span class="vl" id="vw">6 / frame</span></div>
     <input type="range" id="sw" min="0" max="14" value="10">
-    <div class="hint">Below one sweep per frame the chain runs in slow motion. That is the only
-      way to watch a melt: it completes in a <em>single sweep</em>, so at 6/frame it is over
-      before one frame is drawn. Zero pauses where it stands.</div>
+    <div class="hint">Try <b>1 per 16</b>. Amplitude collapses in one sweep but the <em>shape</em>
+      takes ~20 (&asymp;4&tau;) to wash out, and each quench cools into a landscape unrelated to the
+      last &mdash; 21 cycles measured mean correlation <b>&minus;0.02</b>.</div>
   </div>
 
   <div class="btns">

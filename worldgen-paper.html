@@ -128,6 +128,7 @@
     <span class="badge">&nu;&nbsp;<b>= 0 (marginal)</b></span>
     <span class="badge">usable window&nbsp;<b>0.005 wide</b></span>
     <span class="badge">schedule gain&nbsp;<b>0.27 &rarr; 1.00</b></span>
+    <span class="badge">21 quenches, mean r&nbsp;<b>&minus;0.02</b></span>
     <span class="badge">hardware&nbsp;<b>none &mdash; contingent</b></span>
   </div>
 </div></header>
@@ -156,8 +157,11 @@
     readily <em>out</em> of equilibrium. Driving the coupling on a periodic schedule that crosses the
     positive-definiteness boundary turns the sampler into a repeating quench, and the spatial
     autocorrelation at lag&nbsp;1 rises from <strong>0.27 held static to 1.00</strong> at the top of each
-    cycle, with coherent coastlines and only 3% of cells at the saturation rail. That regime is
-    <strong>not sampling</strong>, and the paper is explicit about what it therefore forfeits.</p>
+    cycle, with coherent coastlines and only 3% of cells at the saturation rail. Over 21 consecutive
+    cycles the landscapes are individually coherent (lag-1 0.970&ndash;0.991) yet mutually uncorrelated
+    (<strong>mean pairwise correlation &minus;0.022</strong> across 210 pairs) &mdash; so the schedule is a
+    <strong>generator of independent worlds</strong>, not an oscillation between attractors. That regime
+    is <strong>not sampling</strong>, and the paper is explicit about what it therefore forfeits.</p>
 
   <div class="call honest">
     <div class="t">Scope</div>
@@ -376,6 +380,46 @@
     collapses the field&rsquo;s <em>amplitude</em> in a single sweep. Washing out its <em>shape</em> takes
     about <b>20 sweeps</b> &mdash; roughly 4&tau; at coupling 0.95. The second is what you watch, which is
     why the demo can run as slowly as one sweep per 32 frames.</p>
+
+  <h3 style="font-family:var(--mono);font-size:15px;margin:30px 0 8px">Each quench is an independent draw</h3>
+  <p>Watching the schedule at one sweep per sixteen frames makes a stronger claim available than
+    &ldquo;it morphs.&rdquo; The cycle does not alternate between a small number of attractors: each quench
+    cools into a landscape <strong>statistically unrelated to the one before it</strong>. Measured over
+    <b>110 seconds and 21 consecutive cycles</b>, snapshotting the z-scored field at the end of every high
+    phase and correlating all <b>210 pairs</b>:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Quantity</th><th>Measured</th><th>Reading</th></tr></thead>
+    <tbody>
+      <tr><td>Internal coherence of each landscape (lag-1)</td><td><b>0.970 &ndash; 0.991</b></td>
+        <td>every cycle is individually coherent</td></tr>
+      <tr><td>Mean correlation across all 210 pairs</td><td><b>&minus;0.0223</b></td>
+        <td>indistinguishable from zero</td></tr>
+      <tr><td>Spread of those correlations (sd)</td><td>0.2887</td>
+        <td>implies <b>N<sub>eff</sub> &asymp; 12</b> independent patches</td></tr>
+      <tr><td>N<sub>eff</sub> from the measured feature size (13.5 cells)</td><td><b>&asymp;12&ndash;23</b></td>
+        <td>agrees, by an independent route</td></tr>
+      <tr><td>Largest single pairwise correlation</td><td>0.652</td>
+        <td>~2.2 sd &mdash; no pair anomalously alike</td></tr>
+    </tbody>
+  </table></div>
+  <p>The two estimates of N<sub>eff</sub> are what make this more than a null result: one comes from the
+    scatter of the correlations, the other from the size of the features, and they agree. The observed
+    spread is what <strong>independent draws with about a dozen independent patches</strong> would produce.
+    There is no residual preferred pattern for successive cycles to share.</p>
+  <figure>
+    <img src="./worldgen_quenches.png" alt="Ten successive quench landscapes as top-down maps: each shows coherent continents, bays and lakes, and no two are alike.">
+    <figcaption>Ten consecutive quenches, top-down, sea in blue and coastline in sand. Each is a coherent
+      world &mdash; an atoll in cycle 7, a serpentine channel in cycle 3, a deep bay in cycle 9 &mdash; and
+      no two resemble one another.</figcaption>
+  </figure>
+  <div class="call key">
+    <div class="t">Why this is the more interesting result</div>
+    <p>A schedule crossing the boundary is not an animation and not an oscillator between two states. It is
+      a <strong>generator</strong>: each cycle emits one coherent landscape drawn independently of the last,
+      with feature size set by quench depth and cycle length rather than by any coupling constant. That is
+      a programming model with nothing to do with sampling a target distribution &mdash; and it is the
+      regime spin hardware naturally sits in, because bounded spins cannot diverge.</p>
+  </div>
 </div></section>
 
 <section><div class="wrap">
