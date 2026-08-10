@@ -246,6 +246,21 @@
 
         <div class="card">
           <div class="top">
+            <h3>Grow a World</h3><span class="badge live">Live</span>
+          </div>
+          <div class="viz" data-viz="worldgen"></div>
+          <p>Click an empty tile and it is <strong>sampled from an Ising energy, conditioned on the
+            tiles already placed</strong>. Perlin gets an unbounded world free because it is a function
+            of coordinates; a sampler has to earn one by conditioning &mdash; the operation it is best
+            at. Turn on tile borders and try to find the joins: the seam bond measures
+            <strong>z&nbsp;=&nbsp;&minus;1.4</strong> against the interior, and a 1&#8209;cell halo
+            gives &minus;3.0, exactly as the stencil's reach predicts. Runs the real THRML model,
+            checked to <strong>0.027</strong>.</p>
+          <a class="go" href="./worldgen2.html" target="_blank" rel="noopener">Open live demo &rarr;</a>
+        </div>
+
+        <div class="card">
+          <div class="top">
             <h3>Sampler Verification Workbench</h3><span class="badge live">Live</span>
           </div>
           <div class="viz" data-viz="pbit"></div>
