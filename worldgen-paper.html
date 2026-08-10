@@ -1,0 +1,537 @@
+<meta charset="utf-8">
+<title>What a sampler can and cannot do for terrain &mdash; Paul Shaver</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>&#128293;</text></svg>">
+<style>
+  :root{
+    --bg:#0c0a08; --bg2:#110d0a; --panel:#15110d; --panel2:#0a0806;
+    --line:#2a231a; --line2:#3a3125;
+    --gold:#e8a33d; --gold-bright:#ffd27a; --gold-deep:#b9791f; --ember:#ff7a2c;
+    --ink:#efe7da; --ink-dim:#a9a08e; --dim:#8a7f6e; --faint:#6a6252;
+    --cool:#6fa8c9; --ok:#8fce6b; --warn:#e8a33d; --bad:#e2603f;
+    --mono:'Cascadia Code','Cascadia Mono',ui-monospace,Consolas,'Courier New',monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --maxw:860px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4efe6; --bg2:#efe8db; --panel:#fbf7ef; --panel2:#f0e8d8;
+      --line:#e0d6c3; --line2:#d0c4ab;
+      --gold:#b9791f; --gold-bright:#9a6314; --gold-deep:#8a5810; --ember:#d2551a;
+      --ink:#241f18; --ink-dim:#5a5142; --dim:#6a6152; --faint:#8a8172;
+      --cool:#3d7ea0; --ok:#4f8a2f; --warn:#8a5810; --bad:#b23c1c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0c0a08; --bg2:#110d0a; --panel:#15110d; --panel2:#0a0806;
+    --line:#2a231a; --line2:#3a3125;
+    --gold:#e8a33d; --gold-bright:#ffd27a; --gold-deep:#b9791f; --ember:#ff7a2c;
+    --ink:#efe7da; --ink-dim:#a9a08e; --dim:#8a7f6e; --faint:#6a6252;
+    --cool:#6fa8c9; --ok:#8fce6b; --warn:#e8a33d; --bad:#e2603f;
+  }
+  :root[data-theme="light"]{
+    --bg:#f4efe6; --bg2:#efe8db; --panel:#fbf7ef; --panel2:#f0e8d8;
+    --line:#e0d6c3; --line2:#d0c4ab;
+    --gold:#b9791f; --gold-bright:#9a6314; --gold-deep:#8a5810; --ember:#d2551a;
+    --ink:#241f18; --ink-dim:#5a5142; --dim:#6a6152; --faint:#8a8172;
+    --cool:#3d7ea0; --ok:#4f8a2f; --warn:#8a5810; --bad:#b23c1c;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{background:var(--bg);color:var(--ink);margin:0;font-family:var(--sans);
+    font-size:16.5px;line-height:1.68;-webkit-font-smoothing:antialiased}
+  a{color:var(--gold)} a:hover{color:var(--gold-bright)}
+  ::selection{background:var(--gold);color:var(--bg)}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .top{border-bottom:1px solid var(--line);padding:22px 0}
+  .top .wrap{display:flex;justify-content:space-between;align-items:center;gap:14px}
+  .back{font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+  .back:hover{color:var(--gold)}
+  .themebtn{font-family:var(--mono);font-size:14px;width:34px;height:34px;border-radius:9px;
+    border:1px solid var(--line2);background:var(--panel);color:var(--gold);cursor:pointer}
+  .themebtn:hover{border-color:var(--gold)}
+  header.hero{padding:60px 0 34px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--gold);margin:0 0 18px}
+  h1{font-family:var(--mono);font-weight:600;font-size:clamp(25px,4.2vw,40px);line-height:1.14;
+    letter-spacing:-.01em;margin:0 0 18px;text-wrap:balance;
+    background:linear-gradient(96deg,var(--gold-bright),var(--ember) 68%,var(--gold-deep));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .byline{color:var(--ink-dim);font-size:15px;margin:0}
+  .byline b{color:var(--ink);font-weight:600}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+  .badge{font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:20px;
+    border:1px solid var(--line2);color:var(--ink-dim);background:var(--panel)}
+  .badge b{color:var(--gold-bright);font-weight:600}
+  section{padding:38px 0;border-bottom:1px solid var(--line)}
+  h2{font-family:var(--mono);font-weight:600;font-size:21px;margin:0 0 6px;color:var(--ink);
+    letter-spacing:-.01em}
+  h2 .num{color:var(--gold);margin-right:9px}
+  h3{font-family:var(--mono);font-size:15px;margin:26px 0 8px;color:var(--gold-bright);font-weight:600}
+  p{margin:14px 0;color:var(--ink-dim)}
+  p strong,li strong{color:var(--ink);font-weight:600}
+  em{color:var(--ink)}
+  ul,ol{color:var(--ink-dim);padding-left:22px} li{margin:7px 0}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel2);color:var(--gold-bright);
+    padding:2px 6px;border-radius:4px;border:1px solid var(--line)}
+  pre{font-family:var(--mono);font-size:12.5px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;padding:14px;overflow-x:auto;color:var(--ink-dim);line-height:1.55}
+  pre code{background:none;border:0;padding:0;color:inherit}
+  .lead{font-size:17.5px;color:var(--ink-dim)}
+  /* callouts */
+  .call{border-left:3px solid var(--gold);background:var(--panel);border-radius:0 10px 10px 0;
+    padding:16px 18px;margin:22px 0}
+  .call.honest{border-left-color:var(--ember)}
+  .call.key{border-left-color:var(--ok)}
+  .call .t{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--gold);margin-bottom:6px}
+  .call.honest .t{color:var(--ember)} .call.key .t{color:var(--ok)}
+  .call p{margin:6px 0}
+  /* tables */
+  .tw{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  caption{caption-side:bottom;text-align:left;color:var(--faint);font-size:12px;padding:9px 12px;
+    font-family:var(--sans)}
+  th{background:var(--panel2);color:var(--gold);text-align:right;padding:9px 12px;font-weight:600;
+    border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  td{padding:7px 12px;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);
+    color:var(--ink-dim);text-align:right}
+  tr:last-child td{border-bottom:0}
+  tbody tr:hover td{background:color-mix(in srgb,var(--gold) 6%,transparent)}
+  td.hi,th.hi{color:var(--ink)}
+  .good{color:var(--ok)} .bad{color:var(--bad)} .warnc{color:var(--warn)}
+  figure{margin:26px 0}
+  figure img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff}
+  figcaption{color:var(--faint);font-size:12.5px;margin-top:10px;font-family:var(--sans)}
+  .kv{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim)}
+  footer{padding:34px 0 60px;color:var(--faint);font-family:var(--mono);font-size:11.5px}
+</style>
+<div class="top"><div class="wrap">
+  <a class="back" href="./">&larr; paul shaver &middot; thermodynamic computing</a>
+  <button class="themebtn" id="themeBtn" aria-label="Toggle light / dark theme">&#9681;</button>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <p class="eyebrow">Paper &middot; draft v1 &middot; 10 August 2026</p>
+  <h1>What a sampler can and cannot do for terrain:<br>a measured account of Gaussian
+      Markov world generation</h1>
+  <p class="byline"><b>Paul W. Shaver</b> &mdash; independent researcher<br>
+     <span style="color:var(--faint);font-size:13.5px">Measurement &amp; drafting assisted by an AI
+     orchestrator, disclosed per project policy. Every number below comes from a run committed in
+     <code>thermobridge/validation/evo</code>; no synthetic figures, and the negative results are
+     reported at the same weight as the positive ones.</span></p>
+  <div class="badges">
+    <span class="badge">sampler vs analytic&nbsp;<b>3.5% band error</b></span>
+    <span class="badge">&nu;&nbsp;<b>= 0 (marginal)</b></span>
+    <span class="badge">usable window&nbsp;<b>0.005 wide</b></span>
+    <span class="badge">schedule gain&nbsp;<b>0.27 &rarr; 1.00</b></span>
+    <span class="badge">hardware&nbsp;<b>none &mdash; contingent</b></span>
+  </div>
+</div></header>
+
+<main>
+
+<section><div class="wrap">
+  <h2>Abstract</h2>
+  <p class="lead">Minecraft-style terrain is generated today by evaluating a noise function at every
+    point &mdash; a pure feed-forward computation with no notion of constraint. This paper asks whether
+    the same landscape can instead be <em>sampled</em> from an energy, which is the operation a
+    thermodynamic sampling unit (TSU) performs natively, and reports what that buys and what it costs.
+    The vehicle is a live side-by-side demo: Perlin fBM on the left, a Gaussian Markov random field
+    relaxing under red-black block Gibbs on the right, both rendered as voxel terrain.</p>
+  <p>The headline result is <strong>negative and specific</strong>. A sparse GMRF whose precision is the
+    SPDE operator <code>(&kappa;&sup2; &minus; &Delta;)</code> has spectral density
+    <code>S(k) &sim; k&#8315;&sup2;</code>, which in two dimensions is the <strong>marginal,
+    log-correlated case</strong> (&alpha;&nbsp;=&nbsp;1, &nu;&nbsp;=&nbsp;&alpha;&nbsp;&minus;&nbsp;d/2&nbsp;=&nbsp;0).
+    It has no correlation length to tune. Measured: the 1/e correlation length is <strong>1.5 cells at
+    &kappa;&nbsp;=&nbsp;0.06 and 0.8 cells at &kappa;&nbsp;=&nbsp;0.80</strong> &mdash; a knob nominally
+    spanning 13&times; in feature size moves the actual field by under 2&times;. The reason is mode
+    counting, not implementation: at &kappa;&nbsp;=&nbsp;0.06 the longest-wavelength mode carries
+    <strong>364&times;</strong> the power of the shortest, but there are <strong>49</strong> long modes
+    against <strong>2,791</strong> short ones, so 33.5% of the variance sits below three cells.</p>
+  <p>The positive result is that the structure the model cannot produce at equilibrium, it produces
+    readily <em>out</em> of equilibrium. Driving the coupling on a periodic schedule that crosses the
+    positive-definiteness boundary turns the sampler into a repeating quench, and the spatial
+    autocorrelation at lag&nbsp;1 rises from <strong>0.27 held static to 1.00</strong> at the top of each
+    cycle, with coherent coastlines and only 3% of cells at the saturation rail. That regime is
+    <strong>not sampling</strong>, and the paper is explicit about what it therefore forfeits.</p>
+
+  <div class="call honest">
+    <div class="t">Scope</div>
+    <p>No thermodynamic hardware was used or measured. Everything here runs in NumPy, in JAX via THRML,
+      or in JavaScript in your browser. Claims about what a TSU would do are <strong>conditionals with a
+      stated precondition</strong>, marked as such, and are not results.</p>
+    <p>The demo is a <strong>64&times;64 single-chunk instrument</strong>, not a world generator. It has
+      no biomes, no caves, no vegetation, and no vertical structure beyond a height field. It exists to
+      make one question answerable by turning a knob.</p>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">1</span>The question this is pointed at</h2>
+  <p>When a hardware vendor says it needs algorithms, the useful reading is not &ldquo;find more places to
+    call a sampler.&rdquo; It is: <em>find problems where sampling is the whole computation, not a step
+    inside a larger one.</em> A sampler that supplies 1% of an algorithm&rsquo;s operations cannot repay
+    the cost of moving data to it, however efficient it is per sample.</p>
+  <p>Procedural terrain is an unusually clean test of that criterion. Classical world generation is
+    feed-forward by construction: evaluate noise at a coordinate, get a height. It is
+    <strong>embarrassingly parallel and already cheap</strong>, which makes it a hostile target &mdash;
+    there is no sampling cost to displace. But it is also <strong>structurally incapable</strong> of one
+    thing: you cannot tell Perlin noise where to put a river. Constraint satisfaction is exactly what a
+    feed-forward generator cannot do and exactly what conditional sampling does for free.</p>
+  <div class="call key">
+    <div class="t">The claim under test</div>
+    <p>If terrain generation is re-posed as drawing from an energy, then <em>constraints become free</em>
+      &mdash; clamp the cells you care about, and the sampler resolves everything else consistently around
+      them. The question is what that costs in the quality of the terrain you get back.</p>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">2</span>The model, and what every part of it represents</h2>
+  <p>The right-hand world is a <strong>Gaussian Markov random field</strong> on a 64&times;64 periodic
+    lattice. Each cell holds a continuous height. The field is defined by a precision matrix
+    <code>Q</code>, and &mdash; this is the whole point &mdash; <code>Q</code> is <strong>sparse</strong>:
+    a zero at <code>Q&#7522;&#8323;</code> means cells <em>i</em> and <em>j</em> are conditionally
+    independent given everything else. Sparse precision is what makes the model local, and locality is
+    what makes it executable on hardware where each cell talks only to its neighbours.</p>
+  <p>We take <code>Q</code> to be the discretised SPDE operator of Lindgren, Rue and Lindstr&ouml;m,
+    <code>(&kappa;&sup2; &minus; &Delta;)</code>, extended with the eight knight-move offsets so the
+    stencil reaches degree 12 while remaining two-colourable:</p>
+  <pre><code>Q&#7522;&#7522; = &kappa;&sup2; + 4a + 8b        Q(nearest) = &minus;a  (4 of them)        Q(knight) = &minus;b  (8 of them)</code></pre>
+  <p>Every neighbour offset has <code>dx + dy</code> odd, so the interaction graph is bipartite and a
+    <strong>two-colouring is exact</strong>. That matters directly: block Gibbs updates every cell of one
+    colour simultaneously, so a full sweep is two parallel steps regardless of lattice size. This is the
+    operation an Extropic TSU executes in silicon, and it is why the stencil was constrained to stay
+    two-colourable rather than simply made wider.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>What you turn</th><th>What it is in the energy</th><th>What it does to the picture</th></tr></thead>
+    <tbody>
+      <tr><td>Correlation length &kappa;</td><td>the mass term in <code>(&kappa;&sup2;&minus;&Delta;)</code></td>
+        <td>Nominally feature size. Measured effect is weak &mdash; see &sect;5. Its real influence is that it
+          <em>moves the stability boundary</em>.</td></tr>
+      <tr><td>Coupling scale</td><td>multiplies every off-diagonal, diagonal held fixed</td>
+        <td>How strongly neighbours agree. The dominant knob. Crossing 1.000 in off-diagonal mass changes
+          the physics entirely.</td></tr>
+      <tr><td>Anisotropy x&nbsp;:&nbsp;z</td><td>unequal <code>a</code> per axis</td>
+        <td>Directional elongation. Correct in direction, modest in size: ratio reaches only ~1.5 at either
+          extreme.</td></tr>
+      <tr><td>Relief / sea level</td><td>neither &mdash; pure rendering</td>
+        <td>Height gain and the water threshold. Applied identically to both worlds so the comparison stays
+          fair.</td></tr>
+      <tr><td>Clamped cells</td><td><code>clamped_blocks</code> &mdash; cells held fixed during the sweep</td>
+        <td>Constraints. The sampler resolves the free cells conditioned on them.</td></tr>
+      <tr><td>Sampling speed</td><td>nothing physical</td>
+        <td>Sweeps per rendered frame, down to one per 32 frames, so transients can be watched.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="call">
+    <div class="t">The one number that governs everything</div>
+    <p><strong>Off-diagonal mass</strong> = (sum of off-diagonal magnitudes) / <code>Q&#7522;&#7522;</code>.
+      Below&nbsp;1.000 the matrix is diagonally dominant, hence positive definite, hence a probability
+      distribution exists and the chain samples it. At and above 1.000 there is no distribution to sample.
+      Every regime boundary in this paper is that one ratio crossing that one value.</p>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">3</span>Verification before use</h2>
+  <p>THRML is JAX and Python and cannot run in a browser, and the page must run its own sweep in
+    JavaScript. That is only honest if the JavaScript draws from the same distribution, so the port was
+    validated against ground truth <em>before</em> any interface was built on it. The sampled radial
+    spectrum was compared to the analytic <code>1/q&#770;(k)</code>:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Check</th><th>Result</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Mean relative error across the radial band</td><td><b>0.0350</b></td><td class="good">pass</td></tr>
+      <tr><td>Sampled spectral slope vs analytic</td><td><b>&minus;1.30 vs &minus;1.30</b></td><td class="good">pass</td></tr>
+      <tr><td>Control: positive definiteness (min <code>q&#770;</code>)</td><td>&gt; 0 everywhere</td><td class="good">pass</td></tr>
+      <tr><td>Control: <code>a=b=0</code> must give white noise of variance 1</td><td><b>0.9292</b></td><td class="good">pass</td></tr>
+      <tr><td>Off-nominal (coupling 0.70&ndash;1.00, anisotropy 0.35&ndash;3.0), 5 configurations</td>
+        <td>band error <b>3.3&ndash;4.8%</b></td><td class="good">5/5 pass</td></tr>
+    </tbody>
+  </table></div>
+  <p>The last row exists because the first validation was run at a single setting. A sampler verified at
+    one point in its parameter space has been verified at one point; the page ships settings across a
+    wide range, so the range was tested.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">4</span>Three regimes, read off the field</h2>
+  <p>The demo reports which of three regimes it is in, and it determines this by <em>measuring the field</em>
+    rather than predicting from a formula &mdash; because the boundaries move with sweeps-per-frame and are
+    a stochastic race. The same coupling has come back &ldquo;domains&rdquo; on one run and
+    &ldquo;collapsed&rdquo; on the next.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Regime</th><th>Condition</th><th>Measured signature</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><b>sampling</b></td><td>off-diag &lt; 1.000</td><td>&mdash;</td>
+        <td>A genuine draw from the GMRF. The only regime where the model means what it claims.</td></tr>
+      <tr><td><b>quench &mdash; forming</b></td><td>past the wall, few cells railed</td>
+        <td>lag-1 climbing 0.35 &rarr; 0.98 over ~40 sweeps</td>
+        <td>Domains growing out of noise. Visually the most interesting state.</td></tr>
+      <tr><td><b>quench &mdash; domains</b></td><td>past the wall, both rails populated</td>
+        <td>77.5% railed, NN correlation <b>+0.969</b>, features 16&ndash;29 cells</td>
+        <td>A saturated two-phase field. Frozen: unchanged from sweep 200 to 12,800.</td></tr>
+      <tr><td><b>collapsed &mdash; flat</b></td><td>past the wall, one rail only</td>
+        <td>std <b>0.0000</b>, one unique value</td>
+        <td>Every cell the same sign. The world is perfectly flat.</td></tr>
+    </tbody>
+  </table></div>
+  <p>The quench regime deserves a note, because the linear analysis gets it <strong>wrong</strong>. Past
+    the boundary the iteration is linearly unstable, and the fastest-growing modes are the uniform mode
+    and the Nyquist checkerboard, which are exactly degenerate on a bipartite stencil. Simulated without
+    saturation, the field converges to <strong>100% checkerboard</strong>. But the implementation holds
+    cells at a rail &mdash; the continuous stand-in for the &plusmn;1 bound a real Ising TSU has by
+    construction &mdash; and that nonlinearity produces the opposite outcome: nearest-neighbour correlation
+    <b>+0.969</b>, ferromagnetic domains, not checkerboard. The relevant physics is domain coarsening,
+    which is also why the result looks like erosion: coarsening moves boundaries by curvature, and so does
+    erosion.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">5</span>The central negative result: &beta;=2 in 2D has no length scale</h2>
+  <p>The &kappa; knob is labelled &ldquo;correlation length&rdquo; and largely does not deliver one. This is
+    not an implementation defect; it is what the operator is.</p>
+  <p>For the SPDE family <code>(&kappa;&sup2;&minus;&Delta;)<sup>&alpha;</sup></code> in <code>d</code>
+    dimensions the Mat&eacute;rn smoothness is <code>&nu; = &alpha; &minus; d/2</code>. Fitting the
+    small-<code>k</code> behaviour of our lattice operator gives a measured slope of <b>1.965</b>, so
+    <b>&alpha; = 0.983 &asymp; 1</b> and therefore <b>&nu; = &minus;0.017 &asymp; 0</b>. Zero smoothness is
+    the marginal, log-correlated case &mdash; the two-dimensional Gaussian free field. The Mat&eacute;rn
+    range formula <code>&radic;(8&nu;)/&kappa;</code> evaluates to <strong>zero</strong>: the model has no
+    correlation length, at any &kappa;.</p>
+  <div class="tw"><table>
+    <thead><tr><th>&kappa;</th><th>1/e length, exact spectral synthesis</th><th>1/e length, Gibbs chain</th></tr></thead>
+    <tbody>
+      <tr><td>0.06</td><td><b>1.5 cells</b></td><td>1.6 cells</td></tr>
+      <tr><td>0.18</td><td>1.1</td><td>1.0</td></tr>
+      <tr><td>0.40</td><td>0.9</td><td>0.9</td></tr>
+      <tr><td>0.80</td><td>0.8</td><td>0.8</td></tr>
+    </tbody>
+  </table></div>
+  <p>The two columns agree, which rules out the chain being unconverged: the exact samples are drawn by
+    spectral synthesis with no Markov chain involved. The cause is <strong>mode counting</strong>. At
+    &kappa;&nbsp;=&nbsp;0.06 the <code>k=0</code> mode carries <b>364&times;</b> the power of the Nyquist
+    mode individually, but the number of modes at radius <code>k</code> grows like <code>k</code>:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Wavelength band</th><th>Share of variance</th><th>Number of modes</th></tr></thead>
+    <tbody>
+      <tr><td>&gt; 16 cells</td><td>29.2%</td><td>49</td></tr>
+      <tr><td>16 &ndash; 6 cells</td><td>18.0%</td><td>276</td></tr>
+      <tr><td>6 &ndash; 3 cells</td><td>19.2%</td><td>980</td></tr>
+      <tr><td>&lt; 3 cells</td><td><b>33.5%</b></td><td><b>2,791</b></td></tr>
+    </tbody>
+  </table></div>
+  <p>Variance is spread almost evenly per octave &mdash; scale-free roughness. Turning &kappa; down does add
+    long-wavelength power, but the renderer z-scores the field against a standard deviation dominated by
+    cell-scale roughness, so the continents are normalised straight back down.</p>
+  <div class="call honest">
+    <div class="t">What this costs the thesis</div>
+    <p>Sparse precision is the property that makes a GMRF hardware-native, and in two dimensions the
+      cheapest sparse operator lands exactly on the roughest useful exponent. Real terrain is smoother than
+      this model can be at equilibrium. The identified fix is <code>&beta;=4</code>, the biharmonic
+      <code>(&kappa;&sup2;&minus;&Delta;)&sup2;</code>, which is still sparse at higher stencil degree and
+      by spectral synthesis gives a 1/e length of <strong>14.2 cells at &kappa;=0.06</strong> with
+      <strong>94.8%</strong> of variance above 16 cells. That is <em>untested in the live demo</em> and is
+      stated here as the next experiment, not as a result. It is also, pleasingly, the thin-plate operator
+      &mdash; the literal Chladni plate.</p>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">6</span>Schedules: the knob that actually makes landscape</h2>
+  <p>Each of &kappa; and coupling is a <strong>band</strong>, not a value. Collapse the two thumbs and the
+    parameter is static; separate them and it walks between them on a period measured in <em>sweeps</em>,
+    so a schedule reproduces identically regardless of framerate. This was added because driving the
+    coupling across the stability boundary by hand produced structure that holding it still never did.</p>
+  <figure>
+    <img src="./worldgen_cycle.png" alt="Sixteen labelled stills through two full coupling cycles, showing the right-hand world building coherent terrain while past the wall and washing back to noise below it.">
+    <figcaption>Two cycles of a coupling band 0.95&nbsp;&harr;&nbsp;1.13, period 80 sweeps, one sweep per
+      frame. Left world is Perlin and never changes. Right world builds from noise (lag-1 0.17) to coherent
+      terrain (0.98) while past the wall, holds briefly after the coupling drops, then washes out and
+      rebuilds. Every tile is labelled with its sweep, coupling, off-diagonal mass and lag-1.</figcaption>
+  </figure>
+  <div class="tw"><table>
+    <thead><tr><th>Configuration</th><th>lag-1 autocorrelation</th><th>Cells at rail</th></tr></thead>
+    <tbody>
+      <tr><td>Static, coupling 0.95</td><td>0.27</td><td>&mdash;</td></tr>
+      <tr><td>Band 0.95&nbsp;&harr;&nbsp;1.13, snap, period 80</td><td>peaks at <b>1.00</b>, above 0.6 for 50&ndash;62% of the cycle</td><td><b>3%</b></td></tr>
+      <tr><td>Same band, sweep (triangle) waveform</td><td>above 0.6 for 38% of the cycle</td><td>&mdash;</td></tr>
+    </tbody>
+  </table></div>
+  <p>Two operating rules, both measured and both counter to what was expected. <strong>Snap beats
+    sweep</strong> &mdash; ramping smoothly spends most of the cycle at intermediate couplings that neither
+    build structure nor hold it. And the band&rsquo;s <strong>low end must sit well under the
+    boundary</strong>: 0.95 works, while 1.05&nbsp;&harr;&nbsp;1.13 goes flat at every period tested, out to
+    11.9&nbsp;&tau;. A first explanation for that (a large mean entering the quench) was <em>refuted</em> &mdash;
+    every low end from 0.90 to 1.05 produced domains after a fresh settle. A second (the low phase needs
+    several &tau; to re-mix) explains the 1.03 band but fails on 1.05. <strong>That corner remains
+    unexplained</strong>, and the demo ships the empirical map rather than a mechanism.</p>
+  <p>Melting is worth stating precisely because it is two different things. Dropping below the boundary
+    collapses the field&rsquo;s <em>amplitude</em> in a single sweep. Washing out its <em>shape</em> takes
+    about <b>20 sweeps</b> &mdash; roughly 4&tau; at coupling 0.95. The second is what you watch, which is
+    why the demo can run as slowly as one sweep per 32 frames.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">7</span>Constraints, and exactly where they stop meaning anything</h2>
+  <p>This is the capability that motivated the whole exercise. Paint cells on the minimap and they become
+    <code>clamped_blocks</code>: held fixed while the sampler resolves everything else around them. A
+    painted sine river of 192 cells holds <b>192/192</b>, and reads as a genuine channel &mdash; the
+    unclamped terrain sits <b>+2.84&sigma;</b> above it. Re-roll and you get a different world with the
+    same river, which is the thing Perlin structurally cannot do.</p>
+  <div class="call honest">
+    <div class="t">Where it fails, and why it cannot be patched</div>
+    <p>Past the stability boundary this silently inverts. Across 10 seeds at coupling 1.13, a painted river
+      read as a <em>ridge</em> <b>10 times out of 10</b>. The cells are still held; what is gone is the
+      conditional distribution. With <code>Q</code> not positive definite there is no stationary
+      distribution, so there is nothing to condition on, and the ferromagnetic quench simply drags the
+      landscape to the river&rsquo;s own sign.</p>
+    <p>The obvious fix &mdash; clamp the river to the rail so it stays low &mdash; was tested and
+      <strong>made it worse</strong>: the bulk follows to the same rail and the world goes uniform,
+      contrast 0.00. There is no clamp value that works there. The demo therefore warns instead of
+      pretending, and the warning is keyed to the whole band rather than the instant so it does not strobe
+      under a schedule.</p>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">8</span>Instrumentation, and why the obvious formula lies</h2>
+  <p>The panel reports <code>&tau;</code>, the relaxation time of the slowest mode &mdash; the quantity that
+    makes the mixing&ndash;expressivity tradeoff visible. The first implementation computed
+    <code>Q&#7522;&#7522;/&kappa;&sup2;</code>, which contains no coupling term at all. It printed
+    <strong>18 at couplings 0.90, 1.00, 1.13 and 1.45 alike</strong>, in green, while the row directly
+    beneath it reported the chain as diverging.</p>
+  <p>The correct derivation: red-black Gibbs re-noises one sublattice every half sweep, so the chain&rsquo;s
+    memory lives on the other, which propagates as <code>C&middot;C</code>. The eigenvalues are therefore
+    the <em>squares</em> of the Jacobi eigenvalues, extremal at <code>k=0</code> and
+    <code>k=(&pi;,&pi;)</code>, both of magnitude equal to the off-diagonal mass. Hence:</p>
+  <pre><code>&tau; = 1 / (1 &minus; offdiag&sup2;)</code></pre>
+  <p>Validated against the measured slow tail across the slider range: predicted/measured ratio
+    <b>0.89&ndash;0.96</b>. It now spans <b>1.5 to 122</b> and responds to the coupling, and past the
+    boundary it reports nothing at all, because a relaxation time toward a non-existent equilibrium is not
+    a meaningful quantity to print.</p>
+  <p>A second instrumentation lesson concerns resolution. The interesting states occupy a
+    <strong>coupling window about 0.005 wide</strong>, and the slider originally stepped 0.01 &mdash; it
+    straddled the window and could never land inside it:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Coupling</th><th>Off-diagonal mass</th><th>lag-1</th><th>Reachable at 2 decimals</th></tr></thead>
+    <tbody>
+      <tr><td>1.0600</td><td>0.9995</td><td>0.47</td><td class="good">yes</td></tr>
+      <tr><td><b>1.0625</b></td><td>1.0018</td><td><b>0.53 &mdash; peak</b></td><td>no</td></tr>
+      <tr><td>1.0650</td><td>1.0042</td><td>0.15</td><td>no</td></tr>
+      <tr><td>1.0700</td><td>1.0089</td><td>0.06</td><td class="good">yes</td></tr>
+    </tbody>
+  </table></div>
+  <p>Both knobs now carry 10&#8315;&#8308; resolution with arrow-key stepping, and the panel shows the signed
+    margin to the boundary directly. This also resolves a knob that had seemed merely subtle: because the
+    boundary itself sits at <code>(&kappa;&sup2;+X)/X</code>, <strong>a &kappa; band is a margin band</strong>.
+    At coupling 1.00 a full &kappa; swing never crosses and barely registers; at coupling 1.02&ndash;1.10 the
+    same swing crosses it and lag-1 goes from <b>0.34 to 0.99</b>. The knob is not weak, it is conditional.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">9</span>How this tooling, and a TSU, would be used</h2>
+  <p>The demo is an instrument for a design question, and the transferable part is the question, not the
+    terrain. Three things generalise.</p>
+  <p><strong>Sparse precision is the hardware contract.</strong> A zero in <code>Q</code> is a wire that
+    does not need to exist. Anything expressible as a local energy on a two-colourable graph runs as two
+    parallel steps per sweep, at any lattice size. Designing <em>for</em> that constraint &mdash; here,
+    accepting degree 12 to keep the graph bipartite rather than taking a wider isotropic stencil &mdash; is
+    the actual engineering.</p>
+  <p><strong>Constraints are the product, not the terrain.</strong> The measured capability that classical
+    generation lacks is conditional resolution: hold 192 cells, get a consistent world around them, re-roll
+    for another. Any problem shaped like &ldquo;I know some of the answer, give me the rest consistently&rdquo;
+    maps onto this directly &mdash; and, critically, that is a problem where sampling <em>is</em> the whole
+    computation rather than a subroutine inside one.</p>
+  <p><strong>There are two programming models, not one.</strong> Below the boundary you program by shaping
+    a spectrum: choose an energy, get a distribution. Above it you program by shaping a
+    <em>schedule</em>: quench depth and cycle period become the parameters, and feature size is set by when
+    you stop rather than by any coupling. On this model the second is the one that produced usable
+    landscape. Both are native operations for spin hardware.</p>
+  <div class="call honest">
+    <div class="t">The conditional, stated plainly</div>
+    <p>Whether any of this is <em>efficient</em> depends on hardware that was not used here. On a GPU this
+      is strictly worse than calling a noise function. The precondition is that sampling is the dominant
+      cost of the target problem and that a TSU performs it far more cheaply than a GPU; terrain
+      generation as posed here does <strong>not</strong> obviously satisfy the first half of that, since
+      Perlin noise is already nearly free. What terrain does establish is the <em>capability
+      difference</em>, on a problem simple enough to verify completely.</p>
+    <p>A real Ising TSU also differs from this simulation in a specific way worth recording: its spins are
+      bounded at &plusmn;1 by construction, so it lives permanently in the saturated regime and cannot
+      diverge. Past its critical coupling it does what the rail-clamped field here does &mdash; forms
+      domains. The quench programming model is therefore closer to the hardware&rsquo;s natural behaviour
+      than the sampling model is.</p>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">10</span>Errors found and corrected</h2>
+  <p>Reported because the pattern is the same every time and is the main methodological lesson: a measure
+    was validated in the regime where it works and shipped without testing the regime it exists to catch.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Defect</th><th>How it presented</th><th>How it was caught</th></tr></thead>
+    <tbody>
+      <tr><td>&tau; readout ignored the coupling</td><td>printed 18 in green at every coupling, next to a divergence warning</td>
+        <td>reading the formula against the slider it claimed to describe</td></tr>
+      <tr><td>Two panel rows in different units</td><td>a ratio stacked next to a coupling value, reading as &ldquo;0.5% over&rdquo; when the margin was 6.6%</td>
+        <td>recomputing the comparison by hand</td></tr>
+      <tr><td>Whole world rendered mirrored</td><td>at yaw&nbsp;=&nbsp;&pi; the right vector is (&minus;1,0,0), silently swapping the two labelled halves</td>
+        <td>forcing one side to diverge and noticing the <em>wrong</em> half shattered</td></tr>
+      <tr><td>Regime indicator too permissive</td><td>a field at 99.6% railed with std 0.015 labelled &ldquo;domains&rdquo;; z-scoring amplified the residue into a field of spikes</td>
+        <td>screenshotting the state instead of trusting the number</td></tr>
+      <tr><td>Linear analysis of the quench</td><td>predicted the Nyquist checkerboard; the saturated system does the opposite</td>
+        <td>reading the rail clamp that had been in the grepped output all along</td></tr>
+      <tr><td>Correlation-length metric</td><td>power-weighted mean returned ~0.6 cells for <em>every</em> &kappa;</td>
+        <td>noticing it could not distinguish the cases it existed to distinguish</td></tr>
+      <tr><td>&kappa; declared &ldquo;weak&rdquo;</td><td>measured at coupling 1.00 &mdash; the one value where &kappa; cannot cross the boundary</td>
+        <td>testing a second coupling</td></tr>
+      <tr><td>Mat&eacute;rn range mis-applied</td><td>compared measurements against the formula at &nu;=1 when the model sits at &nu;=0</td>
+        <td>a reviewer&rsquo;s objection prompting a re-derivation</td></tr>
+    </tbody>
+  </table></div>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">11</span>What is not established</h2>
+  <ul>
+    <li><strong>No energy measurement, no hardware.</strong> Every efficiency claim about a TSU is a
+      conditional and is marked as one.</li>
+    <li><strong>&beta;=4 is untested in the demo.</strong> Spectral synthesis says it fixes the length-scale
+      problem; the live sampler still runs &beta;=2.</li>
+    <li><strong>The 1.05 band collapse is unexplained.</strong> Two candidate mechanisms were tested and
+      both failed. The empirical map is reported instead.</li>
+    <li><strong>This is one 64&times;64 chunk.</strong> No biomes, caves, vegetation, or 3D density field.
+      A categorical biome layer inside the same superblock is the next structural step.</li>
+    <li><strong>The quench regime is not sampling.</strong> Worlds produced past the boundary are not draws
+      from the GMRF and carry none of the guarantees the sampling regime does.</li>
+  </ul>
+  <p class="kv">Sources: <code>validate_js_sampler.mjs</code>, <code>terrain_gmrf.py</code>,
+    <code>terrain_thrml.py</code>, <code>audit_page.py</code>, <code>validate_fixes.py</code>,
+    <code>diagnose_chladni*.py</code>, <code>osc_*.py</code>, <code>probe_knobs.py</code>.</p>
+  <p style="margin-top:22px"><a class="go" href="./worldgen.html">Open the live demo &rarr;</a></p>
+</div></section>
+
+</main>
+
+<footer><div class="wrap">
+  Draft v1 &middot; 10 August 2026 &middot; every number measured, every limit stated &middot;
+  <a href="./">back to demos</a>
+</div></footer>
+
+<script>
+'use strict';
+(function(){
+  const btn=document.getElementById('themeBtn');
+  const sys=matchMedia('(prefers-color-scheme: dark)');
+  function cur(){return document.documentElement.getAttribute('data-theme')||(sys.matches?'dark':'light');}
+  btn.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme', cur()==='dark'?'light':'dark');
+  });
+})();
+</script>

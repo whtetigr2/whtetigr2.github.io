@@ -232,6 +232,20 @@
 
         <div class="card">
           <div class="top">
+            <h3>Thermodynamic Worldgen</h3><span class="badge live">Live</span>
+          </div>
+          <div class="viz" data-viz="worldgen"></div>
+          <p>Perlin noise on the left, a <strong>Gaussian Markov random field</strong> under live
+            block&#8209;Gibbs on the right, rendered as voxel terrain. Perlin cannot be told where to put a
+            river; the sampler can &mdash; <strong>paint one and 192/192 cells hold</strong> while the world
+            resolves around it. Drive the coupling on a schedule and watch coastlines condense out of noise
+            and melt back. Every knob is instrumented, including the boundary where it stops being a
+            probability distribution at all. <em>(Desktop recommended.)</em></p>
+          <a class="go" href="./worldgen.html" target="_blank" rel="noopener">Open live demo &rarr;</a>
+        </div>
+
+        <div class="card">
+          <div class="top">
             <h3>Sampler Verification Workbench</h3><span class="badge live">Live</span>
           </div>
           <div class="viz" data-viz="pbit"></div>
@@ -256,6 +270,21 @@
             &mdash; and a full accounting of the ~10&times; cost and the hardware the whole thing is
             contingent on.</p>
           <a class="go" href="./paper.html">Read the paper &rarr;</a>
+        </div>
+
+        <div class="card">
+          <div class="top">
+            <h3>Paper &mdash; Sampling terrain</h3><span class="badge paper">Paper</span>
+          </div>
+          <div class="viz" data-viz="worldgen"></div>
+          <p>What a sampler can and cannot do for procedural terrain, measured both ways. The sparse
+            operator that makes a GMRF hardware&#8209;native lands on <strong>&nu;&nbsp;=&nbsp;0</strong>
+            &mdash; the marginal, log&#8209;correlated case &mdash; so &kappa; buys almost no feature size:
+            <strong>1.5 cells at &kappa;=0.06</strong> against 0.8 at 0.80. What does work is driving the
+            model <em>out</em> of equilibrium: a periodic quench lifts lag&#8209;1 autocorrelation from
+            <strong>0.27 to 1.00</strong>. Includes the &tau; formula the obvious one gets wrong, and the
+            eight measurement errors found and corrected along the way.</p>
+          <a class="go" href="./worldgen-paper.html">Read the paper &rarr;</a>
         </div>
 
       </div>
@@ -449,6 +478,19 @@ document.querySelectorAll('.viz').forEach(el=>{
         const jit=Math.sin(t*3+c*1.3)*H*0.05;
         ctx.globalAlpha=0.9; ctx.fillStyle=gold;
         ctx.beginPath(); ctx.arc(c*bw+bw*0.5,H-ref-jit,1.5*devicePixelRatio,0,7); ctx.fill();
+      }
+    } else if(kind==='worldgen'){
+      // schematic: a height profile alternately roughening and coarsening as a quench cycles,
+      // against a fixed waterline — land drawn gold above it, seabed cool below
+      const n=30,bw=W/n,cool=css('--cool'),sea=H*0.54;
+      const q=(Math.sin(t*0.45)+1)/2;            // 0 = boiling below the wall, 1 = quenched
+      for(let c=0;c<n;c++){
+        const rough=Math.sin(c*2.3+t*2.1)*0.5, smooth=Math.sin(c*0.30+t*0.22);
+        const top=H*0.52-(q*smooth+(1-q)*rough)*H*0.28;
+        ctx.globalAlpha=0.85; ctx.fillStyle=top<sea?gold:cool;
+        ctx.fillRect(c*bw+bw*0.14,top,bw*0.72,H-top);
+        ctx.globalAlpha=0.22; ctx.fillStyle=cool;
+        ctx.fillRect(c*bw+bw*0.14,sea,bw*0.72,H-sea);
       }
     }
     ctx.restore();

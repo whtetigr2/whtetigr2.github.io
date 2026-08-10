@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>&#128293;</text></svg>">
+<title>Thermodynamic Worldgen — turn the knobs</title>
+<style>
+  :root{
+    --ground:#0e1317; --panel:#151c22; --panel2:#1a232a; --line:#243039;
+    --ink:#e6ece9; --dim:#8fa0a8; --faint:#5d6d76;
+    --accent:#d59a52; --hot:#e0644c; --cool:#4fa8c7;
+    --grass:#5b9c3f; --sand:#dcc38a; --water:#2f6f9e; --dirt:#7a5638; --stone:#7d8489;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden}
+  body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:13px}
+  canvas#gl{display:block;width:100%;height:100%;cursor:crosshair}
+  #wrap{position:fixed;inset:0}
+
+  #head{position:fixed;top:0;left:0;right:0;z-index:6;padding:12px 16px;pointer-events:none;
+        background:linear-gradient(180deg,rgba(14,19,23,.94),rgba(14,19,23,0))}
+  h1{margin:0;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.15em;
+     text-transform:uppercase;color:var(--accent)}
+  #head p{margin:4px 0 0;color:var(--dim);font-size:12px;max-width:70ch;line-height:1.5}
+  #head b{color:var(--ink)}
+
+  .pane{position:fixed;z-index:7;background:rgba(21,28,34,.94);border:1px solid var(--line);
+        border-radius:4px;padding:12px 13px}
+  #ctrl{left:14px;top:96px;width:250px;max-height:calc(100vh - 130px);overflow-y:auto}
+
+  /* Dual-thumb band slider: two range inputs stacked on one track. The inputs are
+     pointer-transparent except for their thumbs, so both remain grabbable and both keep
+     native keyboard support. Which thumb wins a click is decided on pointerdown by
+     proximity, otherwise coincident thumbs would leave one of them unreachable. */
+  .rp{position:relative;height:18px}
+  .rp input[type=range]{position:absolute;left:0;top:0;width:100%;margin:0;pointer-events:none}
+  .rp input[type=range]::-webkit-slider-runnable-track{background:transparent}
+  .rp input[type=range]::-moz-range-track{background:transparent}
+  .rp input[type=range]::-webkit-slider-thumb{pointer-events:auto}
+  .rp input[type=range]::-moz-range-thumb{pointer-events:auto}
+  .rt{position:absolute;left:0;right:0;top:7px;height:3px;background:var(--line);border-radius:2px}
+  .rb{position:absolute;top:0;height:3px;background:var(--accent);opacity:.5;border-radius:2px}
+  .rn{position:absolute;top:-4px;width:2px;height:11px;background:var(--ink);
+      border-radius:1px;display:none}
+  .osc{display:none}
+  .osc .nm{color:var(--accent)}
+  #inst{right:14px;top:96px;width:212px}
+  #map{right:14px;bottom:14px;width:212px}
+  #cls{left:14px;bottom:14px;width:250px}
+
+  .lab{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+       color:var(--faint);margin:0 0 9px}
+  .k{margin-bottom:11px}
+  .k .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+  .k .nm{font-size:11.5px;color:var(--dim)}
+  .k .vl{font-family:var(--mono);font-size:11.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .k .hint{font-size:10.5px;color:var(--faint);margin-top:2px;line-height:1.35}
+  input[type=range]{width:100%;height:18px;-webkit-appearance:none;appearance:none;background:transparent;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--line);border-radius:2px}
+  input[type=range]::-moz-range-track{height:3px;background:var(--line);border-radius:2px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+    background:var(--accent);margin-top:-5px;border:0}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--accent);border:0}
+  input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  button{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:3px;
+    padding:7px 9px;cursor:pointer}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  button.on{background:var(--accent);color:var(--ground);border-color:var(--accent);font-weight:700}
+  .btns{display:flex;gap:6px;flex-wrap:wrap}
+  .btns button{flex:1 1 auto}
+
+  .stat{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;
+        padding:4px 0;border-bottom:1px solid rgba(36,48,57,.6);font-variant-numeric:tabular-nums}
+  .stat:last-child{border-bottom:0}
+  .stat span:first-child{color:var(--faint)}
+  .stat b{font-weight:600}
+  .ok{color:var(--cool)} .warn{color:var(--accent)} .bad{color:var(--hot)}
+
+  #mini{width:100%;aspect-ratio:1;display:block;background:#0a0e11;border:1px solid var(--line);
+        border-radius:3px;cursor:crosshair;image-rendering:pixelated}
+  #map .hint{font-size:10.5px;color:var(--faint);margin-top:7px;line-height:1.4}
+  #mWarn{display:none;font-size:10.5px;line-height:1.4;margin-top:8px;padding:7px 8px;
+         border:1px solid var(--hot);border-radius:3px;color:var(--hot);
+         background:rgba(224,100,76,.09)}
+  #mWarn b{color:var(--hot)}
+
+  #legend{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:6;display:flex;gap:14px;
+    background:rgba(21,28,34,.94);border:1px solid var(--line);border-radius:4px;padding:8px 13px}
+  .lg{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .sw{width:10px;height:10px;border-radius:1px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.28)}
+
+  #start{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:rgba(14,19,23,.9)}
+  #start .box{max-width:56ch;text-align:center;padding:0 24px}
+  #start p{color:var(--dim);line-height:1.6;margin:0 0 18px}
+  #start .go{background:var(--accent);color:var(--ground);border:0;padding:11px 22px;font-weight:700;font-size:11.5px}
+  #err{white-space:pre-wrap;text-align:left;font-family:var(--mono);font-size:11px;color:var(--hot)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="gl"></canvas></div>
+
+<div id="head">
+  <h1>Thermodynamic worldgen &mdash; turn the knobs</h1>
+  <p><b>Left is Perlin</b>, frozen except for re-roll &mdash; it has no knobs, and that is the point.
+     <b>Right is a Gaussian Markov random field</b> relaxing under red-black block Gibbs, the sweep
+     an Extropic TSU runs natively. Everything you change on the right takes effect in the next sweep.</p>
+</div>
+
+<div class="pane" id="ctrl">
+  <p class="lab">THRML &mdash; live sampler</p>
+
+  <div class="k">
+    <div class="row"><span class="nm">Correlation length &kappa;</span><span class="vl" id="vk">0.283</span></div>
+    <div class="rp">
+      <div class="rt"><div class="rb" id="bk"></div><div class="rn" id="nk"></div></div>
+      <input type="range" id="sk"  min="300" max="9000" value="2830" aria-label="Correlation length, low bound">
+      <input type="range" id="sk2" min="300" max="9000" value="2830" aria-label="Correlation length, high bound">
+    </div>
+    <div class="hint">Drag the second dot out to make it a <b>band</b>. &kappa; also moves the
+      wall, which sits at (&kappa;&sup2;+X)/X &mdash; so a &kappa; band is really a band in the
+      margin opposite, and near the wall it drives the quench on its own. Arrow keys step
+      0.0001; dragging is coarse.</div>
+  </div>
+
+  <div class="k osc" id="okp">
+    <div class="row"><span class="nm">&kappa; period</span><span class="vl" id="vkp">80</span></div>
+    <input type="range" id="skp" min="10" max="800" value="80">
+    <div class="hint">Sweeps per full cycle &mdash; not seconds, so a schedule reproduces whatever
+      the framerate. How much this does depends entirely on where the coupling sits: at 1.00 a
+      full &kappa; swing never crosses the wall and barely registers, but at 1.02&ndash;1.10 the
+      same swing crosses it and lag-1 goes from 0.34 to 0.99. That is why the knob feels
+      inconsistent &mdash; it is a margin knob wearing a length label.</div>
+  </div>
+
+  <div class="k">
+    <div class="row"><span class="nm">Coupling scale</span><span class="vl" id="vc">1.00</span></div>
+    <div class="rp">
+      <div class="rt"><div class="rb" id="bc"></div><div class="rn" id="nc"></div></div>
+      <input type="range" id="sc"  min="2000" max="16000" value="10000" aria-label="Coupling scale, low bound">
+      <input type="range" id="sc2" min="2000" max="16000" value="10000" aria-label="Coupling scale, high bound">
+    </div>
+    <div class="hint">Multiplies every off-diagonal while the diagonal stays put. Below the
+      <b>dominance wall</b> opposite you are sampling. Just past it the chain stops having an
+      equilibrium and quenches into two-level domains &mdash; that is the slow morphing coastline,
+      and it freezes within about a hundred sweeps. Push further and every cell rails to the
+      same sign and the world goes flat. The wall moves with &kappa;.
+      <b>The usable window is about 0.005 wide</b>, so watch the margin readout opposite and
+      use arrow keys &mdash; a step is 0.0001.</div>
+  </div>
+
+  <div class="k osc" id="ocp">
+    <div class="row"><span class="nm">Coupling period</span><span class="vl" id="vcp">80</span></div>
+    <input type="range" id="scp" min="10" max="800" value="80">
+    <div class="hint">A band straddling the wall is a repeating quench, and it is the only thing
+      here that makes large structure. Two rules, both measured: put the <b>low end well under
+      the wall</b> &mdash; 0.95 works, 1.05 goes flat at every period tried &mdash; and keep the
+      period near <b>80 sweeps</b>; by 500 it collapses. At 0.95&ndash;1.13 the field reaches
+      lag-1 0.99 with only 3% of cells on the rail, against 0.26 for the same model held still.</div>
+  </div>
+
+  <div class="k osc" id="owave">
+    <div class="row"><span class="nm">Schedule shape</span><span class="vl" id="vwv">snap</span></div>
+    <div class="btns">
+      <button id="wSnap" class="on">Snap</button>
+      <button id="wSweep">Sweep</button>
+    </div>
+    <div class="hint">Snap jumps between the two bounds and dwells. Sweep ramps across and back.</div>
+  </div>
+
+  <div class="k">
+    <div class="row"><span class="nm">Relief</span><span class="vl" id="vr">1.05</span></div>
+    <input type="range" id="sr" min="20" max="260" value="105">
+    <div class="hint">Terrain amplitude against the fixed coastline ramp. Both worlds get it
+      identically, so the comparison stays fair.</div>
+  </div>
+
+  <div class="k">
+    <div class="row"><span class="nm">Anisotropy x : z</span><span class="vl" id="va">1.00</span></div>
+    <input type="range" id="sa" min="25" max="400" value="100">
+    <div class="hint">Unequal coupling per axis. Correct in direction &mdash; 0.25 elongates along
+      z, 4.0 along x &mdash; but a subtle knob by nature: the directional ratio only reaches
+      about 1.5 at either extreme, in both the sampling and quench regimes.</div>
+  </div>
+
+  <div class="k">
+    <div class="row"><span class="nm">Sea level</span><span class="vl" id="vs">11</span></div>
+    <input type="range" id="ss" min="4" max="20" value="11">
+  </div>
+
+  <div class="k">
+    <div class="row"><span class="nm">Sampling speed</span><span class="vl" id="vw">6 / frame</span></div>
+    <input type="range" id="sw" min="0" max="14" value="10">
+    <div class="hint">Below one sweep per frame the chain runs in slow motion. That is the only
+      way to watch a melt: it completes in a <em>single sweep</em>, so at 6/frame it is over
+      before one frame is drawn. Zero pauses where it stands.</div>
+  </div>
+
+  <div class="btns">
+    <button id="reroll">&#8635; Re-roll THRML</button>
+    <button id="reset">Reset to flat</button>
+  </div>
+</div>
+
+<div class="pane" id="inst">
+  <p class="lab">Instrumentation</p>
+  <div class="stat"><span>sweeps</span><b id="i_sw">0</b></div>
+  <div class="stat"><span>&kappa; now</span><b id="i_k">&mdash;</b></div>
+  <div class="stat"><span>off-diag mass / 1.000</span><b id="i_od">&mdash;</b></div>
+  <div class="stat"><span>margin to wall</span><b id="i_mg">&mdash;</b></div>
+  <div class="stat"><span>coupling / wall</span><b id="i_th">&mdash;</b></div>
+  <div class="stat"><span>&tau; slowest mode</span><b id="i_tau">&mdash;</b></div>
+  <div class="stat"><span>regime</span><b id="i_pd">&mdash;</b></div>
+  <div class="stat"><span>max degree</span><b>12</b></div>
+  <div class="stat"><span>clamped cells</span><b id="i_cl">0</b></div>
+  <div class="stat"><span>faces drawn</span><b id="i_fc">0</b></div>
+</div>
+
+<div class="pane" id="map">
+  <p class="lab">Clamp map &mdash; paint constraints</p>
+  <canvas id="mini" width="64" height="64"></canvas>
+  <div class="btns" style="margin-top:9px">
+    <button id="mRiver" class="on">River</button>
+    <button id="mPeak">Plateau</button>
+    <button id="mErase">Erase</button>
+  </div>
+  <div class="btns" style="margin-top:6px">
+    <button id="mClear">Clear all clamps</button>
+  </div>
+  <div class="hint">Painted cells are held fixed &mdash; <b>clamped_blocks</b> in THRML. The sampler
+    resolves everything else around them. Re-roll and the constraints survive while the world changes.</div>
+  <div id="mWarn">The coupling reaches past the dominance wall, where this stops meaning
+    anything. Cells are still held, but with no equilibrium there is no conditional distribution
+    to condition, and the quench drags the landscape to the river's own sign &mdash; so a painted
+    river renders as a <b>ridge</b>, every time. Keep the coupling, or the whole band, under the wall.</div>
+</div>
+
+<div class="pane" id="cls">
+  <p class="lab">Classical &mdash; Perlin / fBM, static</p>
+  <div class="hint" style="font-size:11px;color:var(--dim);line-height:1.45;margin-bottom:9px">
+    Five octaves of value noise. No temperature, no coupling, no constraints &mdash; a re-roll is
+    the only thing it can do, and it cannot be told where to put a river.</div>
+  <div class="btns"><button id="reclass">&#8635; Re-roll Perlin</button></div>
+</div>
+
+<div id="legend">
+  <div class="lg"><span class="sw" style="background:var(--grass)"></span>Grass</div>
+  <div class="lg"><span class="sw" style="background:var(--dirt)"></span>Dirt</div>
+  <div class="lg"><span class="sw" style="background:var(--sand)"></span>Sand</div>
+  <div class="lg"><span class="sw" style="background:var(--water)"></span>Water</div>
+  <div class="lg"><span class="sw" style="background:var(--stone)"></span>Stone</div>
+  <div class="lg" style="color:var(--faint)">WASD &middot; Space/Shift &middot; drag to look</div>
+</div>
+
+<div id="start"><div class="box">
+  <h1 style="font-size:14px;margin-bottom:12px">Thermodynamic worldgen</h1>
+  <p>Two 64&times;64 worlds side by side. The right one is being sampled continuously by the same
+     red-black block Gibbs sweep a TSU executes in silicon &mdash; every slider changes the energy
+     and the landscape follows within a sweep.</p>
+  <button class="go" id="go">Enter</button>
+  <div id="err"></div>
+</div></div>
+
+<script>
+"use strict";
+const W = 64, HMAX = 30, GAP = 6, SPAN = W*2 + GAP;
+/* RAIL is the value a cell is held to once the chain has no equilibrium. It is not a
+   rendering convenience: it is the continuous stand-in for the spin bound a real Ising
+   TSU has by construction, and it is what turns divergence into domain formation. */
+const RAIL = 25;
+const AIR=0, GRASS=1, SAND=2, WATER=3, DIRT=4, STONE=5;
+const COL = {1:[0.357,0.612,0.247],2:[0.863,0.765,0.541],3:[0.184,0.435,0.620],
+             4:[0.478,0.337,0.220],5:[0.490,0.518,0.541]};
+
+function fail(m){ const s=document.getElementById('start'); s.style.display='grid';
+  document.getElementById('err').textContent=m; throw new Error(m); }
+
+/* ── seeded gaussian ─────────────────────────────────────────────────────────── */
+function gaussian(seed){
+  let s=seed>>>0, spare=null;
+  const u=()=>((s=(s*1664525+1013904223)>>>0)/4294967296);
+  return ()=>{ if(spare!==null){const v=spare;spare=null;return v;}
+    let a,b,r; do{a=2*u()-1;b=2*u()-1;r=a*a+b*b;}while(r>=1||r===0);
+    const m=Math.sqrt(-2*Math.log(r)/r); spare=b*m; return a*m; };
+}
+
+/* ── the sampler, validated against its analytic spectrum to 3.5% before shipping ─
+   GMRF with the SPDE precision (kappa^2 - Laplacian) plus knight-move terms, giving
+   degree 12 on a 2-colourable lattice. Diagonally dominant => positive definite by
+   construction. Gibbs conditional: N( (1/Qii) * sum_j a_ij x_j , 1/Qii ).            */
+const NN=[[1,0],[-1,0],[0,1],[0,-1]];
+const KN=[[2,1],[1,2],[-2,1],[1,-2],[2,-1],[-1,2],[-2,-1],[-1,-2]];
+const field=new Float64Array(W*W);
+const clamped=new Uint8Array(W*W);      // 1 = held fixed (clamped_blocks)
+const clampVal=new Float64Array(W*W);
+let rand=gaussian(1), sweeps=0;
+
+/* The diagonal is pinned at the REFERENCE coupling (scale = 1) while the off-diagonals
+   scale freely. An earlier version scaled both together, so off-diag/Q_ii merely asymptoted
+   to 1 and the model could never leave the positive-definite region — the slider did not do
+   what its label said. Now the dominance threshold is a real, crossable line, and where it
+   sits depends on kappa: threshold = (kappa^2 + X) / X for X the reference off-diagonal sum. */
+/* SCHEDULES. A knob is a BAND, not a value. When its two thumbs coincide the band is a
+   point and the parameter is static — the original behaviour, unchanged. When they are
+   apart the parameter walks between them on a period measured in SWEEPS, so a schedule
+   reproduces identically regardless of framerate or sweeps-per-frame.
+
+   Measured before this was built, because a one-way schedule would have been useless:
+   melting a fully railed field back to the sub-wall stationary state takes ~1 sweep
+   (std 1.244 -> 0.474 against a 0.456 reference), so crossing the wall is reversible.
+   A coupling band straddling the wall then holds 9-14 cell structures at half-periods of
+   20-80 sweeps, with long-wavelength persistence 0.89-0.91 while the short band stays at
+   0.03-0.10 — big shapes that hold, fine detail that boils. The same model held static
+   gives 0.8 cells. The oscillator, not kappa, is what produces large-scale structure here;
+   kappa cannot, because at beta=2 in 2D it sits at the marginal nu=0 point. */
+let wave='snap';
+function osc(lo,hi,period,t){
+  if(hi<=lo+1e-9) return lo;                       // collapsed band = static parameter
+  const ph=(((t%period)+period)%period)/period;
+  const u = wave==='snap' ? (ph<0.5?0:1) : (ph<0.5 ? 2*ph : 2-2*ph);
+  return lo+(hi-lo)*u;
+}
+/* Sampling speed, as sweeps per frame. Below 1 the chain steps in slow motion, which is the
+   only way to watch a melt — melting a railed field back to the stationary state takes a
+   SINGLE sweep, so at any speed >= 1 it is finished before a frame is drawn. */
+const SPEEDS=[0, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 3, 4, 6, 8, 12, 16, 24];
+const speedLabel=r => r===0 ? 'paused'
+  : r<1 ? '1 per '+Math.round(1/r)+' frames' : r+' / frame';
+let sweepAcc=0;
+
+/* DOM is read once per frame; only the cheap oscillator is evaluated per sweep.
+   Both kappa and coupling are stored at 1e-4 resolution: the usable window near the wall is
+   about 0.005 wide in coupling, so the old 0.01 step could not land inside it at all. */
+function knobs(){
+  return {k0:+S('sk').value/1e4, k1:+S('sk2').value/1e4, kp:+S('skp').value,
+          c0:+S('sc').value/1e4, c1:+S('sc2').value/1e4, cp:+S('scp').value,
+          an:+S('sa').value/100};
+}
+function paramsAt(K,t){
+  const kap=osc(K.k0,K.k1,K.kp,t), cs=osc(K.c0,K.c1,K.cp,t);
+  const axR=Math.sqrt(K.an), azR=1/Math.sqrt(K.an), bR=0.18;
+  const X=2*axR+2*azR+8*bR;
+  const Qii=kap*kap+X;
+  return {kappa:kap, cs:cs, kappa2:kap*kap, ax:cs*axR, az:cs*azR, b:cs*bR, Qii,
+          offdiag:cs*X/Qii, threshold:Qii/X};
+}
+
+function sweepOnce(p){
+  const {ax,az,b,Qii}=p, sd=Math.sqrt(1/Qii);
+  for(let colour=0;colour<2;colour++){
+    for(let i=0;i<W;i++){
+      const base=i*W;
+      for(let j=0;j<W;j++){
+        if(((i+j)&1)!==colour) continue;
+        const id=base+j;
+        if(clamped[id]){ field[id]=clampVal[id]; continue; }
+        let s=0;
+        s+=ax*(field[(((i+1)%W))*W+j]+field[(((i-1+W)%W))*W+j]);
+        s+=az*(field[base+((j+1)%W)]+field[base+((j-1+W)%W)]);
+        for(let n=0;n<8;n++){
+          const dx=KN[n][0], dy=KN[n][1];
+          s+=b*field[(((i+dx)%W+W)%W)*W+(((j+dy)%W+W)%W)];
+        }
+        field[id]=s/Qii + sd*rand();
+      }
+    }
+  }
+  sweeps++;
+}
+
+/* ── classical arm: five octaves of value noise ──────────────────────────────── */
+function classical(seed){
+  const r=gaussian(seed), h=new Float64Array(W*W);
+  let amp=1, freq=4;
+  for(let o=0;o<5;o++){
+    const g=freq+1, grid=new Float64Array(g*g);
+    for(let i=0;i<g*g;i++) grid[i]=r();
+    const smooth=(t)=>t*t*(3-2*t);
+    for(let i=0;i<W;i++) for(let j=0;j<W;j++){
+      const x=i/W*freq, y=j/W*freq;
+      const x0=Math.floor(x), y0=Math.floor(y), fx=smooth(x-x0), fy=smooth(y-y0);
+      const g00=grid[(x0%g)*g+(y0%g)], g10=grid[((x0+1)%g)*g+(y0%g)];
+      const g01=grid[(x0%g)*g+((y0+1)%g)], g11=grid[((x0+1)%g)*g+((y0+1)%g)];
+      h[i*W+j]+=amp*((g00*(1-fx)+g10*fx)*(1-fy)+(g01*(1-fx)+g11*fx)*fy);
+    }
+    amp*=0.55; freq*=2;
+  }
+  return h;
+}
+let classField=classical(11);
+
+/* ── shared: field -> integer heights, with a coastline ramp ─────────────────── */
+function heights(src, sea, relief){
+  let m=0,v=0; for(const x of src) m+=x; m/=src.length;
+  for(const x of src) v+=(x-m)*(x-m); v=Math.sqrt(v/src.length)||1;
+  const out=new Int16Array(W*W);
+  for(let i=0;i<W;i++) for(let j=0;j<W;j++){
+    const ramp=(i/(W-1))*2.7-1.35;              // the fixed coastline, both arms alike
+    const z=relief*((src[i*W+j]-m)/v)+0.95*ramp;
+    out[i*W+j]=Math.max(1,Math.min(HMAX-1, Math.round(sea+z*3.2)));
+  }
+  return out;
+}
+function block(top,y,sea){
+  if(y>top) return y<=sea?WATER:AIR;
+  if(y===top) return top<=sea+1?SAND:GRASS;
+  if(y>=top-2) return top<=sea+1?SAND:DIRT;
+  return STONE;
+}
+
+/* ── mesh ────────────────────────────────────────────────────────────────────── */
+const FACES=[
+ {d:[0,1,0],c:[[0,1,0],[0,1,1],[1,1,1],[1,1,0]],l:1.00},
+ {d:[0,-1,0],c:[[0,0,1],[0,0,0],[1,0,0],[1,0,1]],l:0.45},
+ {d:[1,0,0],c:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]],l:0.78},
+ {d:[-1,0,0],c:[[0,0,1],[0,1,1],[0,1,0],[0,0,0]],l:0.68},
+ {d:[0,0,1],c:[[1,0,1],[1,1,1],[0,1,1],[0,0,1]],l:0.86},
+ {d:[0,0,-1],c:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]],l:0.58}];
+const CAP=900000;
+const posBuf=new Float32Array(CAP*3), colBuf=new Float32Array(CAP*3);
+let nSolid=0, nWater=0;
+const wPosBuf=new Float32Array(300000*3), wColBuf=new Float32Array(300000*3);
+
+function emit(P,C,n,x,y,z,f,base){
+  const q=f.c;
+  const tri=[q[0],q[1],q[2],q[0],q[2],q[3]];
+  for(const p of tri){
+    P[n*3]=x+p[0]; P[n*3+1]=y+p[1]; P[n*3+2]=z+p[2];
+    C[n*3]=base[0]*f.l; C[n*3+1]=base[1]*f.l; C[n*3+2]=base[2]*f.l; n++;
+  }
+  return n;
+}
+function buildMesh(hc,ht,sea){
+  let ns=0, nw=0;
+  const at=(H,x0,i,j)=>H[i*W+j];
+  for(let arm=0; arm<2; arm++){
+    const H = arm===0?hc:ht, x0 = arm===0?0:W+GAP;
+    for(let i=0;i<W;i++) for(let j=0;j<W;j++){
+      const top=H[i*W+j];
+      const hi = top>sea?top:sea;
+      for(let y=0;y<=hi;y++){
+        const b=block(top,y,sea);
+        if(b===AIR) continue;
+        const isW=b===WATER, base=COL[b];
+        for(const f of FACES){
+          const ny=y+f.d[1], ni=i+f.d[0], nj=j+f.d[2];
+          let nb;
+          if(ny<0) nb=STONE;
+          else if(ni<0||ni>=W||nj<0||nj>=W) nb=AIR;
+          else { const nt=H[ni*W+nj]; nb=(ny>HMAX-1)?AIR:block(nt,ny,sea); }
+          if(isW){ if(nb!==AIR) continue; }
+          else if(nb!==AIR && nb!==WATER) continue;
+          if(isW){ if(nw<300000-6) nw=emit(wPosBuf,wColBuf,nw,x0+i,y,j,f,base); }
+          else   { if(ns<CAP-6)    ns=emit(posBuf,colBuf,ns,x0+i,y,j,f,base); }
+        }
+      }
+    }
+  }
+  nSolid=ns; nWater=nw;
+}
+
+/* ── WebGL ───────────────────────────────────────────────────────────────────── */
+const cvs=document.getElementById('gl');
+const gl=cvs.getContext('webgl',{antialias:true});
+if(!gl) fail('This browser reports no WebGL context, so the world cannot render.');
+const VS=`attribute vec3 p;attribute vec3 c;uniform mat4 mvp;varying vec3 vc;varying float vd;
+void main(){vec4 q=mvp*vec4(p,1.0);gl_Position=q;vc=c;vd=q.z;}`;
+const FS=`precision mediump float;varying vec3 vc;varying float vd;uniform float alpha;
+void main(){float fog=clamp(1.0-vd/230.0,0.30,1.0);
+gl_FragColor=vec4(mix(vec3(0.055,0.075,0.09),vc,fog),alpha);}`;
+function sh(t,s,n){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);
+  if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) fail(n+' shader: '+gl.getShaderInfoLog(o)); return o;}
+const prog=gl.createProgram();
+gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS,'vertex'));
+gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS,'fragment'));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) fail('link: '+gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const aP=gl.getAttribLocation(prog,'p'),aC=gl.getAttribLocation(prog,'c');
+const uM=gl.getUniformLocation(prog,'mvp'),uA=gl.getUniformLocation(prog,'alpha');
+const bSP=gl.createBuffer(),bSC=gl.createBuffer(),bWP=gl.createBuffer(),bWC=gl.createBuffer();
+
+function pushMesh(){
+  gl.bindBuffer(gl.ARRAY_BUFFER,bSP); gl.bufferData(gl.ARRAY_BUFFER,posBuf.subarray(0,nSolid*3),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bSC); gl.bufferData(gl.ARRAY_BUFFER,colBuf.subarray(0,nSolid*3),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bWP); gl.bufferData(gl.ARRAY_BUFFER,wPosBuf.subarray(0,nWater*3),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bWC); gl.bufferData(gl.ARRAY_BUFFER,wColBuf.subarray(0,nWater*3),gl.DYNAMIC_DRAW);
+  document.getElementById('i_fc').textContent=(((nSolid+nWater)/3)|0).toLocaleString();
+}
+function drawBuf(bp,bc,n,alpha){
+  if(!n) return;
+  gl.uniform1f(uA,alpha);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bp);gl.enableVertexAttribArray(aP);gl.vertexAttribPointer(aP,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bc);gl.enableVertexAttribArray(aC);gl.vertexAttribPointer(aC,3,gl.FLOAT,false,0,0);
+  gl.drawArrays(gl.TRIANGLES,0,n);
+}
+
+/* ── camera ──────────────────────────────────────────────────────────────────── */
+/* Camera sits on the +Z side looking back toward -Z (yaw = 0), NOT on the -Z side looking
+   forward. At yaw = PI the right vector is (-1,0,0), so screen-right is -X and the world
+   renders MIRRORED — the arm at low X appears on the right of the screen, silently swapping
+   the two labelled halves. Caught by pushing THRML past the dominance wall and watching the
+   wrong side shatter. At yaw = 0 the right vector is (+1,0,0) and world X maps to screen X. */
+const cam={x:SPAN/2,y:34,z:W+56,yaw:0,pitch:-0.48};
+const keys={};
+addEventListener('keydown',e=>{keys[e.code]=1;
+  if(['Space','ShiftLeft','KeyW','KeyA','KeyS','KeyD'].includes(e.code)&&e.target===document.body)e.preventDefault();});
+addEventListener('keyup',e=>keys[e.code]=0);
+let drag=false,lx=0,ly=0;
+cvs.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;cvs.setPointerCapture(e.pointerId)});
+cvs.addEventListener('pointerup',e=>{drag=false});
+cvs.addEventListener('pointermove',e=>{ if(!drag)return;
+  cam.yaw-=(e.clientX-lx)*0.005; cam.pitch=Math.max(-1.5,Math.min(1.5,cam.pitch-(e.clientY-ly)*0.005));
+  lx=e.clientX; ly=e.clientY; });
+function mul(a,b){const o=new Float32Array(16);
+  for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];o[i*4+j]=s;}return o;}
+function persp(f,ar,n,fa){const t=1/Math.tan(f/2);
+  return new Float32Array([t/ar,0,0,0,0,t,0,0,0,0,(fa+n)/(n-fa),-1,0,0,2*fa*n/(n-fa),0]);}
+function view(){
+  const cp=Math.cos(cam.pitch),sp=Math.sin(cam.pitch),cy=Math.cos(cam.yaw),sy=Math.sin(cam.yaw);
+  const f=[-sy*cp,sp,-cy*cp],r=[cy,0,-sy],u=[sy*sp,cp,cy*sp];
+  return new Float32Array([r[0],u[0],-f[0],0,r[1],u[1],-f[1],0,r[2],u[2],-f[2],0,
+    -(r[0]*cam.x+r[1]*cam.y+r[2]*cam.z),-(u[0]*cam.x+u[1]*cam.y+u[2]*cam.z),(f[0]*cam.x+f[1]*cam.y+f[2]*cam.z),1]);
+}
+
+/* ── clamp map ───────────────────────────────────────────────────────────────── */
+const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
+let mode='river', painting=false;
+const img=mctx.createImageData(W,W);
+function drawMini(ht,sea){
+  for(let i=0;i<W;i++) for(let j=0;j<W;j++){
+    const id=i*W+j, o=(j*W+i)*4, t=ht[id];
+    let c = t<=sea ? [47,111,158] : (t<=sea+1 ? [220,195,138] : [91,156,63]);
+    if(clamped[id]) c=[213,154,82];
+    img.data[o]=c[0];img.data[o+1]=c[1];img.data[o+2]=c[2];img.data[o+3]=255;
+  }
+  mctx.putImageData(img,0,0);
+}
+function paintAt(e){
+  const r=mini.getBoundingClientRect();
+  const i=Math.floor((e.clientX-r.left)/r.width*W), j=Math.floor((e.clientY-r.top)/r.height*W);
+  const sea=+document.getElementById('ss').value;
+  for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+    const a=i+di,b=j+dj; if(a<0||a>=W||b<0||b>=W) continue;
+    const id=a*W+b;
+    if(mode==='erase'){ clamped[id]=0; }
+    else { clamped[id]=1; clampVal[id] = mode==='river' ? -2.6 : 2.6; }
+  }
+  document.getElementById('i_cl').textContent=clamped.reduce((s,v)=>s+v,0).toLocaleString();
+}
+mini.addEventListener('pointerdown',e=>{painting=true;mini.setPointerCapture(e.pointerId);paintAt(e)});
+mini.addEventListener('pointerup',()=>painting=false);
+mini.addEventListener('pointermove',e=>{if(painting)paintAt(e)});
+for(const [id,m] of [['mRiver','river'],['mPeak','peak'],['mErase','erase']]){
+  document.getElementById(id).addEventListener('click',()=>{
+    mode=m;
+    for(const q of ['mRiver','mPeak','mErase']) document.getElementById(q).classList.toggle('on',q===id);
+  });
+}
+document.getElementById('mClear').addEventListener('click',()=>{
+  clamped.fill(0); document.getElementById('i_cl').textContent='0'; });
+
+/* ── UI wiring ───────────────────────────────────────────────────────────────── */
+const S=id=>document.getElementById(id);
+
+/* Two range inputs share one track. Coincident thumbs would leave one unreachable, so the
+   thumb nearer the pointer is raised on pointerdown; and dragging one past the other pushes
+   it rather than blocking, so a band can always be opened or closed from either side. */
+function bindPair(loId,hiId){
+  const lo=S(loId), hi=S(hiId), wrap=lo.parentElement, span=+lo.max-+lo.min;
+  wrap.addEventListener('pointerdown',e=>{
+    const r=wrap.getBoundingClientRect(), f=(e.clientX-r.left)/r.width;
+    const dl=Math.abs(f-(+lo.value-+lo.min)/span), dh=Math.abs(f-(+hi.value-+lo.min)/span);
+    const useHi = dh<dl || (dh===dl && f>=(+lo.value-+lo.min)/span);
+    lo.style.zIndex=useHi?1:2; hi.style.zIndex=useHi?2:1;
+  },true);
+  lo.addEventListener('input',()=>{ if(+lo.value>+hi.value) hi.value=lo.value; syncLabels(); });
+  hi.addEventListener('input',()=>{ if(+hi.value<+lo.value) lo.value=hi.value; syncLabels(); });
+}
+bindPair('sk','sk2'); bindPair('sc','sc2');
+
+const pct=(v,el)=>100*(v-+el.min)/(+el.max-+el.min);
+function syncLabels(){
+  const k0=+S('sk').value/1e4, k1=+S('sk2').value/1e4;
+  const c0=+S('sc').value/1e4, c1=+S('sc2').value/1e4;
+  const kOsc=k1>k0+1e-9, cOsc=c1>c0+1e-9;
+  S('vk').textContent = kOsc ? k0.toFixed(4)+' ↔ '+k1.toFixed(4) : k0.toFixed(4);
+  S('vc').textContent = cOsc ? c0.toFixed(4)+' ↔ '+c1.toFixed(4) : c0.toFixed(4);
+  S('va').textContent=(+S('sa').value/100).toFixed(2);
+  S('vs').textContent=S('ss').value;
+  S('vw').textContent=speedLabel(SPEEDS[+S('sw').value]);
+  S('vr').textContent=(+S('sr').value/100).toFixed(2);
+  S('vkp').textContent=S('skp').value; S('vcp').textContent=S('scp').value;
+  // The period row for a knob only appears once that knob is actually a band.
+  S('okp').style.display=kOsc?'block':'none';
+  S('ocp').style.display=cOsc?'block':'none';
+  S('owave').style.display=(kOsc||cOsc)?'block':'none';
+  for(const [b,l,h] of [['bk','sk','sk2'],['bc','sc','sc2']]){
+    const a=pct(+S(l).value,S(l)), z=pct(+S(h).value,S(l));
+    S(b).style.left=a+'%'; S(b).style.width=Math.max(0,z-a)+'%';
+  }
+}
+/* Live position of each scheduled parameter, drawn on its own track. */
+function markers(K,p){
+  for(const [n,lo,hi,el,now] of [['nk',K.k0,K.k1,S('sk'),p.kappa],
+                                 ['nc',K.c0,K.c1,S('sc'),p.cs]]){
+    const m=S(n);
+    if(hi<=lo+1e-9){ m.style.display='none'; continue; }
+    m.style.display='block'; m.style.left=pct(now*1e4,el)+'%';
+  }
+}
+for(const id of ['sk','sk2','sc','sc2','sa','ss','sw','sr','skp','scp'])
+  S(id).addEventListener('input',syncLabels);
+for(const [id,w] of [['wSnap','snap'],['wSweep','sweep']])
+  S(id).addEventListener('click',()=>{ wave=w; S('vwv').textContent=w;
+    S('wSnap').classList.toggle('on',w==='snap');
+    S('wSweep').classList.toggle('on',w==='sweep'); });
+S('reroll').addEventListener('click',()=>{rand=gaussian((Math.random()*1e9)|0);
+  for(let i=0;i<field.length;i++) if(!clamped[i]) field[i]=0; sweeps=0;});
+S('reset').addEventListener('click',()=>{field.fill(0);sweeps=0;});
+S('reclass').addEventListener('click',()=>{classField=classical((Math.random()*1e9)|0);});
+S('go').addEventListener('click',()=>{S('start').style.display='none';});
+
+/* ── loop ────────────────────────────────────────────────────────────────────── */
+let last=0, meshAge=1e9, hc=null, ht=null;
+function frame(t){
+  const dt=Math.min(0.05,(t-last)/1000)||0; last=t;
+  const sp=(keys.ControlLeft?70:34)*dt;
+  const cy=Math.cos(cam.yaw),sy=Math.sin(cam.yaw);
+  if(keys.KeyW){cam.x+=-sy*sp;cam.z+=-cy*sp} if(keys.KeyS){cam.x-=-sy*sp;cam.z-=-cy*sp}
+  if(keys.KeyD){cam.x+=cy*sp;cam.z+=-sy*sp} if(keys.KeyA){cam.x-=cy*sp;cam.z-=-sy*sp}
+  if(keys.Space)cam.y+=sp; if(keys.ShiftLeft)cam.y-=sp;
+
+  const K=knobs(), sea=+S('ss').value, rate=SPEEDS[+S('sw').value];
+  // Fractional rates accumulate, so "1 per 32 frames" really is one sweep every 32 frames
+  // rather than a stutter. Paused resets the accumulator so it does not fire on resume.
+  if(rate===0) sweepAcc=0; else sweepAcc+=rate;
+  const nsw=Math.floor(sweepAcc); sweepAcc-=nsw;
+  // Sweep REGARDLESS of positive-definiteness, so crossing the wall is visible rather than
+  // hidden behind a guard. Past the wall the field is held at the RAIL, which does not merely
+  // keep the geometry renderable — it changes the physics from divergence to domain formation,
+  // and that is the regime the panel now names rather than calling everything "diverging".
+  // Parameters and the rail are both evaluated PER SWEEP, not per frame: under a schedule the
+  // regime can change inside a single frame, and clamping per frame made the outcome depend on
+  // the sweeps-per-frame slider (78% of cells railed at 1/frame vs 100% at 24/frame).
+  for(let s=0;s<nsw;s++){
+    const ps=paramsAt(K,sweeps);
+    sweepOnce(ps);
+    if(ps.offdiag>=1) for(let i=0;i<field.length;i++)
+      field[i]=Math.max(-RAIL,Math.min(RAIL,field[i]));
+  }
+  const p=paramsAt(K,sweeps);
+  const offdiag=p.offdiag, pd=offdiag<1;
+
+  S('i_sw').textContent=sweeps.toLocaleString();
+  S('i_k').textContent=p.kappa.toFixed(3);
+  S('i_od').textContent=offdiag.toFixed(4);
+  /* Distance to the wall in off-diag units, which is where the interesting states live. A
+     fine scan at kappa=0.574 put the peak at margin +0.0018 and total collapse by +0.0042,
+     so the whole usable window is a few thousandths wide and is worth its own readout. */
+  const margin=offdiag-1;
+  S('i_mg').textContent=(margin>=0?'+':'')+margin.toFixed(4);
+  S('i_mg').className = margin>0.005 ? 'bad' : (margin>-0.005 ? 'warn' : 'ok');
+  // Coupling and wall are both coupling values, so they are comparable. off-diag mass is a
+  // RATIO and its limit is 1.000. The two used to sit adjacent in different units, which read
+  // as "0.5% over the wall" when the true margin was 6.6%. Under a schedule this shows the
+  // EFFECTIVE coupling this sweep, not the slider position.
+  S('i_th').textContent=p.cs.toFixed(2)+' / '+p.threshold.toFixed(3);
+  markers(K,p);
+
+  /* tau of the slowest mode. The old readout was Qii/kappa^2 — no coupling term at all, so it
+     printed 18 in green at coupling 0.90, 1.00, 1.13 AND 1.45, including while the row below
+     said the chain was diverging. Red-black Gibbs re-noises one sublattice every half sweep,
+     so the chain's memory lives on the other, which propagates as (C C): the eigenvalues are
+     lamJacobi^2, extremal at k=0 and k=(pi,pi), both of magnitude offdiag. Hence
+     tau = 1/(1 - offdiag^2), checked against the measured slow tail over the whole slider
+     range (predicted/measured 0.89-0.96). Past the wall there is no equilibrium to relax to,
+     so a relaxation time is not a meaningful thing to print. */
+  const tEl=S('i_tau');
+  if(pd){ const tau=1/(1-offdiag*offdiag);
+    tEl.textContent = tau>1e5?'>1e5':tau.toFixed(tau<10?1:0);
+    tEl.className = tau>1000?'bad':(tau>100?'warn':'ok');
+  } else { tEl.textContent='—'; tEl.className='bad'; }
+
+  /* Regime, read off the field itself rather than predicted from a formula, because the
+     boundaries move with sweeps-per-frame and no closed form would stay true.
+     A domain state means TWO phases coexisting, so that is what gets tested. An earlier
+     version only asked whether the field was exactly constant, and so labelled a field
+     sitting at -25.00..-24.58 (99.6% railed, one sign, std 0.015) as "domains" — heights()
+     z-scores, so that 0.06% residue was being amplified to full relief and rendered as a
+     field of spikes. Caught by screenshotting the state instead of trusting the number. */
+  const rEl=S('i_pd');
+  if(pd){ rEl.textContent='sampling'; rEl.className='ok'; }
+  else {
+    let pos=0, neg=0, free=0;
+    for(let i=0;i<field.length;i++) if(!clamped[i]){
+      free++;
+      if(field[i]>=RAIL-1e-6) pos++; else if(field[i]<=-RAIL+1e-6) neg++;
+    }
+    const railed=(pos+neg)/Math.max(1,free), minor=Math.min(pos,neg)/Math.max(1,free);
+    if(railed<0.5){ rEl.textContent='quench — forming'; rEl.className='warn'; }
+    else if(minor<0.01){ rEl.textContent='collapsed — flat'; rEl.className='bad'; }
+    else { rEl.textContent='quench — domains'; rEl.className='warn'; }
+  }
+  /* Keyed to the BAND, not to this instant. Under a schedule the instantaneous test would
+     flicker the warning on and off every half cycle, which reads as a glitch rather than a
+     statement. A schedule crosses the wall iff its highest coupling does so at its lowest
+     kappa, since the wall (kappa^2 + X)/X is lowest there. */
+  const axW=Math.sqrt(K.an), X_W=2*axW+2/axW+8*0.18;
+  S('mWarn').style.display = (K.c1*X_W/(K.k0*K.k0+X_W) >= 1) ? 'block' : 'none';
+
+  meshAge+=dt;
+  if(meshAge>0.07){
+    meshAge=0;
+    const relief=+S('sr').value/100;
+    hc=heights(classField,sea,relief); ht=heights(field,sea,relief);
+    buildMesh(hc,ht,sea); pushMesh(); drawMini(ht,sea);
+  }
+
+  const dpr=Math.max(1,Math.min(devicePixelRatio||1,2));
+  const w=cvs.clientWidth*dpr|0,h=cvs.clientHeight*dpr|0;
+  if(cvs.width!==w||cvs.height!==h){cvs.width=w;cvs.height=h;}
+  gl.viewport(0,0,w,h);
+  gl.clearColor(0.055,0.075,0.09,1);gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.uniformMatrix4fv(uM,false,mul(persp(1.15,w/h,0.1,600),view()));
+  gl.disable(gl.BLEND); drawBuf(bSP,bSC,nSolid,1.0);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+  drawBuf(bWP,bWC,nWater,0.62); gl.depthMask(true);
+  requestAnimationFrame(frame);
+}
+syncLabels();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
