@@ -113,12 +113,13 @@
 <div id="head">
   <h1>Thermodynamic worldgen &mdash; turn the knobs</h1>
   <p><b>Left is Perlin</b>, frozen except for re-roll &mdash; it has no knobs, and that is the point.
-     <b>Right is a Gaussian Markov random field</b> relaxing under red-black block Gibbs, the sweep
-     an Extropic TSU runs natively. Everything you change on the right takes effect in the next sweep.</p>
+     <b>Right is a Gaussian Markov random field</b> under red-black block Gibbs, spectrum-matched to
+     THRML to 3.5%. The <em>continuous</em> field here is a stand-in: the object THRML and the hardware
+     run natively is a binary spin, and the paper reports what changes when you port it to one.</p>
 </div>
 
 <div class="pane" id="ctrl">
-  <p class="lab">THRML &mdash; live sampler</p>
+  <p class="lab">GMRF &mdash; live sampler (THRML-matched)</p>
 
   <div class="k">
     <div class="row"><span class="nm">Correlation length &kappa;</span><span class="vl" id="vk">0.283</span></div>

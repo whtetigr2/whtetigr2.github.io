@@ -129,6 +129,8 @@
     <span class="badge">usable window&nbsp;<b>0.005 wide</b></span>
     <span class="badge">schedule gain&nbsp;<b>0.27 &rarr; 1.00</b></span>
     <span class="badge">21 quenches, mean r&nbsp;<b>&minus;0.02</b></span>
+    <span class="badge">reproduces on spins&nbsp;<b>in THRML</b></span>
+    <span class="badge">conditional worlds&nbsp;<b>6/6</b></span>
     <span class="badge">hardware&nbsp;<b>none &mdash; contingent</b></span>
   </div>
 </div></header>
@@ -162,12 +164,25 @@
     (<strong>mean pairwise correlation &minus;0.022</strong> across 210 pairs) &mdash; so the schedule is a
     <strong>generator of independent worlds</strong>, not an oscillation between attractors. That regime
     is <strong>not sampling</strong>, and the paper is explicit about what it therefore forfeits.</p>
+  <p>Because all of that was measured on a continuous field, which is <em>not</em> the object THRML or the
+    hardware targets, the whole experiment was then re-run on <strong>binary spins in THRML</strong>
+    (&sect;7). It reproduces: mean pairwise correlation between successive worlds
+    <strong>&minus;0.004</strong>, coherence NN 0.87&ndash;0.93. Two corrections follow from that port. The
+    periodic schedule is <strong>not</strong> a programming model &mdash; it is statistically identical to
+    restarting from random and costs twice as much. And the one capability the Gaussian model
+    <em>lost</em> past its stability boundary &mdash; conditioning on painted constraints &mdash; turns out
+    to have failed for a purely Gaussian reason and <strong>works on spins</strong>, in 6 of 6 runs,
+    where the Gaussian failed in 10 of 10.</p>
 
   <div class="call honest">
     <div class="t">Scope</div>
     <p>No thermodynamic hardware was used or measured. Everything here runs in NumPy, in JAX via THRML,
       or in JavaScript in your browser. Claims about what a TSU would do are <strong>conditionals with a
       stated precondition</strong>, marked as such, and are not results.</p>
+    <p>THRML ships <code>SpinNode</code> and <code>CategoricalNode</code>. The continuous height field used
+      through &sect;6 is a <strong>custom subclass of <code>AbstractNode</code> written for this work</strong>,
+      with a hand-written Gaussian conditional sampler &mdash; it is not a stock THRML model, and &sect;7
+      exists because of that.</p>
     <p>The demo is a <strong>64&times;64 single-chunk instrument</strong>, not a world generator. It has
       no biomes, no caves, no vegetation, and no vertical structure beyond a height field. It exists to
       make one question answerable by turning a knob.</p>
@@ -416,14 +431,83 @@
     <div class="t">Why this is the more interesting result</div>
     <p>A schedule crossing the boundary is not an animation and not an oscillator between two states. It is
       a <strong>generator</strong>: each cycle emits one coherent landscape drawn independently of the last,
-      with feature size set by quench depth and cycle length rather than by any coupling constant. That is
-      a programming model with nothing to do with sampling a target distribution &mdash; and it is the
+      with feature size set by quench depth rather than by any coupling constant &mdash; and it is the
       regime spin hardware naturally sits in, because bounded spins cannot diverge.</p>
+    <p><b>Corrected in &sect;7:</b> the <em>cycle</em> is not doing the work. Measured against restarting
+      from a random state each time, the periodic schedule is statistically indistinguishable and twice as
+      expensive. The quench is the mechanism; the schedule around it is a convenience.</p>
   </div>
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">7</span>Constraints, and exactly where they stop meaning anything</h2>
+  <h2><span class="num">7</span>The binary-spin port: does any of this survive on the native object?</h2>
+  <p>Everything above was measured on a <em>continuous</em> Gaussian field. That is not the object
+    THRML targets. THRML ships <code>SpinNode</code> and <code>CategoricalNode</code>; the
+    <code>ContinuousNode</code> used here is <strong>our own subclass of <code>AbstractNode</code></strong>
+    with a hand-written Gaussian conditional sampler. Binary spins are the native type, and the
+    hardware's native type. So the fair question is whether the preceding results are properties of the
+    physics or artifacts of a Gaussian stand-in.</p>
+  <p>The port keeps everything else fixed: same 64&times;64 periodic lattice, same degree-12 stencil
+    (4 nearest + 8 knight, every offset <code>dx+dy</code> odd, so the 2-colouring is exact &mdash;
+    verified at <strong>0 same-colour pairs across 24,576 edges</strong>), same relative weights
+    1.0&nbsp;:&nbsp;0.18. What changes is the knob. On spins there is no precision matrix to lose
+    definiteness; there is only temperature, so the schedule drives <b>&beta;</b> across the
+    <strong>ordering transition</strong> rather than driving a coupling across a positive-definiteness
+    boundary.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Quantity, at quench peaks</th><th>Gaussian (v1)</th><th>THRML spins</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>Internal coherence of each world</td><td>lag-1 0.970&ndash;0.991</td><td>NN 0.87&ndash;0.93</td><td class="good">reproduces</td></tr>
+      <tr><td>Feature size</td><td>13.5 cells</td><td>8.3&ndash;9.9 cells</td><td class="good">same order</td></tr>
+      <tr><td>Mean pairwise correlation between worlds</td><td>&minus;0.022 (210 pairs)</td><td><b>&minus;0.004</b> (190 pairs)</td><td class="good">reproduces</td></tr>
+    </tbody>
+  </table></div>
+  <figure>
+    <img src="./worldgen_spins.png" alt="Ten consecutive quenches of a binary Ising model in THRML, each a coherent land and sea configuration, none alike.">
+    <figcaption>Ten consecutive quenches of an <code>IsingEBM</code> in THRML &mdash; binary spins, &beta;
+      driven across the ordering transition. Each is a coherent land/sea configuration with organic
+      coastlines; no two alike. The Gaussian result is not an artifact of the Gaussian.</figcaption>
+  </figure>
+
+  <div class="call honest">
+    <div class="t">Correction: the schedule is not the mechanism</div>
+    <p>v1 framed the periodic schedule as a programming model. That framing is <strong>not
+      supported</strong>. Measured against simply restarting from a random state each time:</p>
+    <div class="tw"><table>
+      <thead><tr><th>Method</th><th>NN corr</th><th>Feature size</th><th>Mean pairwise r</th><th>Sweeps / world</th></tr></thead>
+      <tbody>
+        <tr><td>Cyclic schedule</td><td>0.902</td><td>9.3</td><td>&minus;0.007</td><td>80</td></tr>
+        <tr><td>Independent restarts</td><td>0.902</td><td>8.7</td><td>&minus;0.004</td><td><b>40</b></td></tr>
+      </tbody>
+    </table></div>
+    <p>Statistically indistinguishable, and restarting is <strong>half the cost</strong>. The
+      <em>quench</em> is the mechanism; the cycle around it is a convenience. The defensible claim is
+      that a quench from disorder yields a coherent world and repeated quenches yield independent ones
+      &mdash; which holds however you re-disorder in between.</p>
+  </div>
+
+  <h3>What a continuous field costs on binary hardware</h3>
+  <p>If the native object is a spin, a continuous height must be embedded &mdash; as bit-planes, where a
+    k-bit fixed-point value expands into pairwise couplings scaling as 2<sup>(i+j)</sup>. We predicted
+    that would drive the model straight into the mixing wall. <strong>That prediction was wrong.</strong>
+    Exact relaxation times for a k-bit fixed-point GMRF:</p>
+  <div class="tw"><table>
+    <thead><tr><th>bits</th><th>dynamic range</th><th>&tau; (exact)</th><th>vs 1-bit</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>1</td><td>2.381</td><td>1.0&times;</td></tr>
+      <tr><td>3</td><td>16</td><td>3.811</td><td>1.6&times;</td></tr>
+      <tr><td>4</td><td>64</td><td>3.961</td><td><b>1.7&times;</b></td></tr>
+      <tr><td>6</td><td>1024</td><td>4.010</td><td><b>1.7&times; &mdash; saturated</b></td></tr>
+    </tbody>
+  </table></div>
+  <p>The cost saturates at 1.7&times; by four bits, so the Gaussian&rarr;binary contract is cheap. The
+    constraint that actually binds is not cell count but <strong>degree and fanout</strong> against a
+    device's interaction graph &mdash; 12 here, and more for any smoother operator.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2><span class="num">8</span>Constraints, and exactly where they stop meaning anything</h2>
   <p>This is the capability that motivated the whole exercise. Paint cells on the minimap and they become
     <code>clamped_blocks</code>: held fixed while the sampler resolves everything else around them. A
     painted sine river of 192 cells holds <b>192/192</b>, and reads as a genuine channel &mdash; the
@@ -442,10 +526,42 @@
       pretending, and the warning is keyed to the whole band rather than the instant so it does not strobe
       under a schedule.</p>
   </div>
+
+  <h3>On spins the failure disappears entirely</h3>
+  <p>That limitation turns out to be a <strong>Gaussian pathology, not a physical one</strong>. The reason
+    conditioning breaks past the wall is that <code>Q</code> stops being positive definite, so there is no
+    distribution left to condition on. A spin system has a perfectly good Gibbs distribution at
+    <em>every</em> &beta;, ordered phase included &mdash; so the failure has no analogue there.</p>
+  <p>Running the identical experiment on the THRML <code>IsingEBM</code> &mdash; the same 192-cell sine
+    river, held through <code>clamped_blocks</code>, quenched across the ordering transition:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Model</th><th>Runs where the river reads as a channel</th><th>Mean spin adjacent to the river</th></tr></thead>
+    <tbody>
+      <tr><td>Gaussian, past the wall (v1)</td><td class="bad">0 of 10 &mdash; read as a <em>ridge</em></td><td>&mdash;</td></tr>
+      <tr><td>THRML spins, ordered phase</td><td class="good"><b>6 of 6</b></td><td>&minus;0.99 to &minus;1.00, against a far field of &minus;0.03 to &minus;0.61</td></tr>
+    </tbody>
+  </table></div>
+  <figure>
+    <img src="./worldgen_spin_river.png" alt="Six sampled spin worlds sharing one clamped river drawn in orange; the land masses differ in every one.">
+    <figcaption>Six worlds sampled from the <em>same</em> constraint (the clamped river, orange). Coastlines
+      and land masses differ in each; the river is honoured in all. Mean pairwise correlation between them
+      is <b>+0.210</b> &mdash; they still vary, and the correlation that remains is the shared constraint
+      showing through, which is what conditioning is supposed to do.</figcaption>
+  </figure>
+  <div class="call key">
+    <div class="t">Why this is the result that matters</div>
+    <p>This answers the obvious objection &mdash; <em>you are just drawing i.i.d. samples</em>. The
+      independence is <em>between</em> worlds, which is what a generator should give. The value is that each
+      world is a draw from a <strong>conditional</strong> distribution given whatever you clamp, and no
+      feed-forward noise function can do that at any price. Perlin cannot be told where to put a river.</p>
+    <p>Honest caveat: a 192-cell clamp also tilts the global phase &mdash; the far field ran as low as
+      &minus;0.61, so painting a river makes the whole world wetter. That is the correct ferromagnetic
+      response to a boundary rather than a bug, but it means a large constraint is not a local edit.</p>
+  </div>
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">8</span>Instrumentation, and why the obvious formula lies</h2>
+  <h2><span class="num">9</span>Instrumentation, and why the obvious formula lies</h2>
   <p>The panel reports <code>&tau;</code>, the relaxation time of the slowest mode &mdash; the quantity that
     makes the mixing&ndash;expressivity tradeoff visible. The first implementation computed
     <code>Q&#7522;&#7522;/&kappa;&sup2;</code>, which contains no coupling term at all. It printed
@@ -480,7 +596,7 @@
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">9</span>How this tooling, and a TSU, would be used</h2>
+  <h2><span class="num">10</span>How this tooling, and a TSU, would be used</h2>
   <p>The demo is an instrument for a design question, and the transferable part is the question, not the
     terrain. Three things generalise.</p>
   <p><strong>Sparse precision is the hardware contract.</strong> A zero in <code>Q</code> is a wire that
@@ -494,10 +610,15 @@
     maps onto this directly &mdash; and, critically, that is a problem where sampling <em>is</em> the whole
     computation rather than a subroutine inside one.</p>
   <p><strong>There are two programming models, not one.</strong> Below the boundary you program by shaping
-    a spectrum: choose an energy, get a distribution. Above it you program by shaping a
-    <em>schedule</em>: quench depth and cycle period become the parameters, and feature size is set by when
-    you stop rather than by any coupling. On this model the second is the one that produced usable
-    landscape. Both are native operations for spin hardware.</p>
+    a spectrum: choose an energy, get a distribution. Above it you program by <em>quenching</em>: drive the
+    system through its ordering transition and feature size is set by how deep you go, not by any coupling
+    constant. On this model the second is the one that produced usable landscape, and &sect;7 confirms it on
+    binary spins. Note the correction there, though &mdash; it is the <em>quench</em> that is the primitive,
+    not any particular schedule wrapped around it.</p>
+  <p><strong>And the two compose.</strong> The result in &sect;8 is that a quench can be run
+    <em>conditionally</em> &mdash; clamp what you know, quench the rest, get a coherent world that honours
+    the constraint, and repeat for a different one. That combination is the thing no feed-forward generator
+    offers, and on spins it is available at every temperature rather than only below a stability boundary.</p>
   <div class="call honest">
     <div class="t">The conditional, stated plainly</div>
     <p>Whether any of this is <em>efficient</em> depends on hardware that was not used here. On a GPU this
@@ -515,7 +636,7 @@
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">10</span>Errors found and corrected</h2>
+  <h2><span class="num">11</span>Errors found and corrected</h2>
   <p>Reported because the pattern is the same every time and is the main methodological lesson: a measure
     was validated in the regime where it works and shipped without testing the regime it exists to catch.</p>
   <div class="tw"><table>
@@ -535,6 +656,15 @@
         <td>noticing it could not distinguish the cases it existed to distinguish</td></tr>
       <tr><td>&kappa; declared &ldquo;weak&rdquo;</td><td>measured at coupling 1.00 &mdash; the one value where &kappa; cannot cross the boundary</td>
         <td>testing a second coupling</td></tr>
+      <tr><td>THRML sampler appeared to run but did not</td>
+        <td><code>SamplingSchedule(n_warmup=0, n_samples=1)</code> returns the initial state verbatim; a
+          &beta;=0 randomness check "passed" while measuring its own <code>bernoulli</code> initialiser</td>
+        <td>a second control from an all-+1 start, where <em>zero</em> spins flipped and every one should
+          have been a coin toss</td></tr>
+      <tr><td>Quench-depth prediction</td>
+        <td>predicted shallower quenches would grow features toward the Gaussian's; the dependence runs the
+          other way, monotonically</td>
+        <td>measuring six depths instead of arguing</td></tr>
       <tr><td>Mat&eacute;rn range mis-applied</td><td>compared measurements against the formula at &nu;=1 when the model sits at &nu;=0</td>
         <td>a reviewer&rsquo;s objection prompting a re-derivation</td></tr>
     </tbody>
@@ -542,7 +672,7 @@
 </div></section>
 
 <section><div class="wrap">
-  <h2><span class="num">11</span>What is not established</h2>
+  <h2><span class="num">12</span>What is not established</h2>
   <ul>
     <li><strong>No energy measurement, no hardware.</strong> Every efficiency claim about a TSU is a
       conditional and is marked as one.</li>
@@ -552,8 +682,16 @@
       both failed. The empirical map is reported instead.</li>
     <li><strong>This is one 64&times;64 chunk.</strong> No biomes, caves, vegetation, or 3D density field.
       A categorical biome layer inside the same superblock is the next structural step.</li>
-    <li><strong>The quench regime is not sampling.</strong> Worlds produced past the boundary are not draws
-      from the GMRF and carry none of the guarantees the sampling regime does.</li>
+    <li><strong>The quench regime is not equilibrium sampling.</strong> Worlds produced past the boundary
+      are not draws from the GMRF and carry none of the guarantees the sampling regime does &mdash; though
+      &sect;8 shows they <em>are</em> draws from a well-defined conditional distribution once the model is
+      spins rather than a Gaussian.</li>
+    <li><strong>The feature-size gap between Gaussian and spins is unexplained.</strong> 13.5 cells against
+      8.3&ndash;9.9. Quench depth was the obvious candidate and was ruled out by measurement.</li>
+    <li><strong>&beta;<sub>c</sub> is not pinned down.</strong> Ordering sets in somewhere near 0.26&ndash;0.30
+      on this stencil, but the equilibrium scan is unreliable near the transition &mdash; critical slowing
+      down makes |m| read 0.85 at &beta;=0.30 and 0.20 at &beta;=0.34. A finite-size study would be needed
+      to quote it properly.</li>
   </ul>
   <p class="kv">Sources: <code>validate_js_sampler.mjs</code>, <code>terrain_gmrf.py</code>,
     <code>terrain_thrml.py</code>, <code>audit_page.py</code>, <code>validate_fixes.py</code>,
