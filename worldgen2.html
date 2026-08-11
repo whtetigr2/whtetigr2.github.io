@@ -10,26 +10,45 @@
     --ground:#0e1317; --panel:#151c22; --panel2:#1a232a; --line:#243039;
     --ink:#e6ece9; --dim:#8fa0a8; --faint:#5d6d76;
     --accent:#d59a52; --hot:#e0644c; --cool:#4fa8c7; --ok:#7fb069;
-    --land:#5b9c3f; --sand:#dcc38a; --sea:#2f6f9e; --clamp:#d59a52;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
     --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
-  body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:13px;
-       display:flex;height:100vh;overflow:hidden}
-  #stage{flex:1;position:relative;display:grid;place-items:center;overflow:hidden;min-width:0}
-  #map{image-rendering:pixelated;cursor:crosshair;border:1px solid var(--line);border-radius:3px;
-       max-width:calc(100vw - 560px);max-height:calc(100vh - 40px)}
-  aside{width:266px;flex:0 0 266px;padding:14px;overflow-y:auto;border-right:1px solid var(--line);
-        background:var(--panel)}
-  aside.right{border-right:0;border-left:1px solid var(--line);width:250px;flex-basis:250px}
-  h1{margin:0 0 4px;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.14em;
-     text-transform:uppercase;color:var(--accent)}
-  .sub{color:var(--dim);font-size:11.5px;line-height:1.5;margin:0 0 16px}
+  html,body{margin:0;height:100%;overflow:hidden}
+  body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:13px}
+
+  /* the render owns the screen; everything else floats over it */
+  #stage{position:fixed;inset:0;display:grid;place-items:center}
+  #map{image-rendering:pixelated;border:1px solid var(--line);border-radius:3px;cursor:crosshair}
+
+  /* ── top drawer ─────────────────────────────────────────────────────────────
+     Controls live off-screen until called for. Everything is fixed-position so the
+     canvas keeps the full viewport and can be sized to it. */
+  #bar{position:fixed;top:0;left:0;right:0;z-index:20;height:38px;display:flex;align-items:center;
+       gap:14px;padding:0 12px;background:rgba(14,19,23,.92);border-bottom:1px solid var(--line);
+       backdrop-filter:blur(6px)}
+  #bar h1{margin:0;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.14em;
+          text-transform:uppercase;color:var(--accent);white-space:nowrap}
+  #bar .live{display:flex;gap:13px;font-family:var(--mono);font-size:11px;color:var(--dim);
+             font-variant-numeric:tabular-nums;overflow:hidden}
+  #bar .live b{color:var(--ink);font-weight:600}
+  #bar .spacer{flex:1}
+  #handle{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+    background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:3px;
+    padding:6px 11px;cursor:pointer;white-space:nowrap}
+  #handle:hover{border-color:var(--accent);color:var(--accent)}
+  #handle:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  #drawer{position:fixed;top:38px;left:0;right:0;z-index:19;background:rgba(21,28,34,.97);
+    border-bottom:1px solid var(--line);padding:16px 14px 18px;
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:0 22px;
+    transform:translateY(-115%);transition:transform .22s ease;max-height:74vh;overflow-y:auto}
+  #drawer.open{transform:translateY(0)}
+  @media (prefers-reduced-motion:reduce){#drawer{transition:none}}
+
+  .col{min-width:0}
   .lab{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-       color:var(--faint);margin:18px 0 9px}
-  .lab:first-of-type{margin-top:0}
+       color:var(--faint);margin:0 0 10px;padding-bottom:5px;border-bottom:1px solid var(--line)}
   .k{margin-bottom:13px}
   .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
   .nm{font-size:11.5px;color:var(--dim)}
@@ -50,67 +69,110 @@
   button.on{background:var(--accent);color:var(--ground);border-color:var(--accent);font-weight:700}
   .btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
   .btns button{flex:1 1 auto}
+
+  /* ── readout, bottom-left, out of the way ─────────────────────────────────── */
+  #inst{position:fixed;left:12px;bottom:12px;z-index:18;width:206px;padding:10px 11px;
+        background:rgba(21,28,34,.92);border:1px solid var(--line);border-radius:4px;
+        backdrop-filter:blur(6px)}
   .stat{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;
-        padding:4px 0;border-bottom:1px solid rgba(36,48,57,.6);font-variant-numeric:tabular-nums}
-  .stat:last-child{border-bottom:0}
+        padding:3px 0;font-variant-numeric:tabular-nums}
   .stat span{color:var(--faint)} .stat b{font-weight:600}
   .ok{color:var(--ok)} .warn{color:var(--accent)} .bad{color:var(--hot)} .cool{color:var(--cool)}
-  .note{font-size:10.5px;line-height:1.45;margin-top:10px;padding:8px 9px;border-radius:3px;
-        border:1px solid var(--line);color:var(--dim);background:var(--panel2)}
-  .note.warn{border-color:var(--accent);color:var(--accent)}
-  .lg{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;
-      color:var(--dim);margin-top:5px}
-  .sw{width:11px;height:11px;border-radius:2px}
-  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  #legend{position:fixed;right:12px;bottom:12px;z-index:18;display:flex;gap:12px;padding:8px 12px;
+    background:rgba(21,28,34,.92);border:1px solid var(--line);border-radius:4px;backdrop-filter:blur(6px)}
+  .lg{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .sw{width:10px;height:10px;border-radius:2px}
+  #note{position:fixed;left:12px;bottom:196px;z-index:18;width:206px;padding:8px 10px;font-size:10.5px;
+        line-height:1.45;color:var(--accent);background:rgba(21,28,34,.92);
+        border:1px solid var(--accent);border-radius:4px;display:none}
 </style>
 </head>
 <body>
-<aside>
-  <h1>Grow a world</h1>
-  <p class="sub">Every tile is sampled from an Ising energy, <b>conditioned on the tiles already
-    placed</b>. Perlin gets an unbounded world free because it is a function of coordinates. A
-    sampler has to earn one &mdash; by conditioning, which is the operation it is best at.</p>
-
-  <p class="lab">The Hamiltonian</p>
-  <div class="k">
-    <div class="row"><span class="nm">Temperature &beta;</span><span class="vl" id="vb">0.50</span></div>
-    <input type="range" id="sb" min="10" max="70" value="50" aria-label="Inverse temperature beta">
-    <div class="hint">Ordering sets in near <b>&beta;&nbsp;=&nbsp;0.26&ndash;0.30</b> on this stencil.
-      Below it you get noise; above it, domains.</div>
-  </div>
-
-  <p class="lab">The program: when you stop</p>
-  <div class="k">
-    <div class="row"><span class="nm">Sweeps per tile</span><span class="vl" id="vs">60</span></div>
-    <input type="range" id="ss" min="4" max="400" value="60" aria-label="Sweeps per tile">
-    <div class="hint">Feature size grows as <b>t<sup>&frac12;</sup></b> &mdash; measured exponent
-      0.459 at &beta;=0.30, 0.477 at &beta;=0.50, against Allen&ndash;Cahn's 0.50. Want twice the
-      features, run four times as long.</div>
-  </div>
-  <div id="lottery" class="note warn" style="display:none"></div>
-
-  <p class="lab">Mode</p>
-  <div class="btns">
-    <button id="mGrow" class="on">Grow</button>
-    <button id="mLand">Paint land</button>
-    <button id="mSea">Paint sea</button>
-  </div>
-  <div class="hint" id="modeHint">Click any empty tile touching the world to sample it,
-    conditioned on its neighbours.</div>
-
-  <div class="btns" style="margin-top:14px">
-    <button id="reseed">&#8635; Re-roll all</button>
-    <button id="clear">Reset</button>
-  </div>
-  <div class="btns">
-    <button id="tSeams">Show tile borders</button>
-  </div>
-</aside>
-
 <div id="stage"><canvas id="map"></canvas></div>
 
-<aside class="right">
-  <p class="lab">Instrumentation</p>
+<div id="bar">
+  <h1>Grow a world</h1>
+  <div class="live">
+    <span>&beta; <b id="b_beta">0.14</b></span>
+    <span>sweeps <b id="b_sw">60</b></span>
+    <span>stencil <b id="b_st">Z1 / 16</b></span>
+    <span>tiles <b id="b_t">0</b></span>
+  </div>
+  <div class="spacer"></div>
+  <button id="handle" aria-expanded="false" aria-controls="drawer">Controls &#9662;</button>
+</div>
+
+<div id="drawer">
+  <div class="col">
+    <p class="lab">The energy</p>
+    <div class="k">
+      <div class="row"><span class="nm">Stencil</span><span class="vl" id="vst">Z1</span></div>
+      <div class="btns">
+        <button id="stZ1" class="on">Z1 &middot; deg 16</button>
+        <button id="stOurs">ours &middot; deg 12</button>
+      </div>
+      <div class="hint" id="stHint">Z1's real connection rules (1,0) (2,1) (2,3) (4,1), each with
+        four rotations. Every offset has dx+dy odd, so the lattice is a chessboard &mdash; the chip
+        is bipartite by construction, which is why a sweep is two parallel steps.</div>
+    </div>
+    <div class="k">
+      <div class="row"><span class="nm">Temperature &beta;</span><span class="vl" id="vb">0.14</span></div>
+      <input type="range" id="sb" min="3" max="70" value="14" aria-label="Inverse temperature beta">
+      <div class="hint" id="bHint">Ordering sets in near <b>&beta; = 0.10&ndash;0.15</b> on this
+        stencil. Below it, noise; above it, domains.</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="lab">The program: when you stop</p>
+    <div class="k">
+      <div class="row"><span class="nm">Sweeps per tile</span><span class="vl" id="vs">60</span></div>
+      <input type="range" id="ss" min="4" max="400" value="60" aria-label="Sweeps per tile">
+      <div class="hint">Feature size grows as <b>t<sup>&frac12;</sup></b> &mdash; measured exponent
+        0.459 and 0.477 against Allen&ndash;Cahn's 0.50. Four times the sweeps for twice the
+        features. &beta; never changes, so nothing is ever re-flashed.</div>
+    </div>
+    <div class="k">
+      <div class="row"><span class="nm">Tile size</span><span class="vl" id="vt">64</span></div>
+      <input type="range" id="st" min="24" max="80" step="8" value="64" aria-label="Tile size">
+      <div class="hint">Resets the world. Smaller tiles show the seams off faster.</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="lab">Mode</p>
+    <div class="btns">
+      <button id="mGrow" class="on">Grow</button>
+      <button id="mLand">Paint land</button>
+      <button id="mSea">Paint sea</button>
+    </div>
+    <div class="hint" id="modeHint">Click any empty tile touching the world to sample it,
+      conditioned on its neighbours.</div>
+    <div class="btns" style="margin-top:14px">
+      <button id="reseed">&#8635; Re-roll all</button>
+      <button id="clear">Reset</button>
+    </div>
+    <div class="btns">
+      <button id="tSeams">Show tile borders</button>
+      <button id="fill">Fill world</button>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="lab">What you are looking at</p>
+    <div class="hint">Every tile is sampled from an Ising energy <b>conditioned on the tiles
+      already placed</b>. Perlin gets an unbounded world free because it is a function of
+      coordinates; a sampler earns one by conditioning, which is the operation it is best at.</div>
+    <div class="hint" style="margin-top:9px">The browser sampler is checked against THRML on the
+      same stencil: largest deviation <b>0.027</b> in nearest-neighbour correlation across
+      &beta;=0.18&ndash;0.40. It runs the model, not an impression of it.</div>
+    <div class="hint" style="margin-top:9px">Seam bond measures <b>z = &minus;1.4</b> against the
+      interior distribution at a 2-cell blanket, and <b>&minus;3.0</b> at 1 cell &mdash; exactly as
+      the stencil's reach predicts. Turn on borders and try to find a join.</div>
+  </div>
+</div>
+
+<div id="inst">
   <div class="stat"><span>tiles placed</span><b id="i_t">0</b></div>
   <div class="stat"><span>cells sampled</span><b id="i_c">0</b></div>
   <div class="stat"><span>&beta; vs transition</span><b id="i_b">&mdash;</b></div>
@@ -119,173 +181,177 @@
   <div class="stat"><span>|magnetisation|</span><b id="i_m">&mdash;</b></div>
   <div class="stat"><span>clamped cells</span><b id="i_k">0</b></div>
   <div class="stat"><span>last tile, ms</span><b id="i_ms">&mdash;</b></div>
+</div>
+<div id="note"></div>
 
-  <p class="lab">What you are looking at</p>
-  <div class="lg"><span class="sw" style="background:var(--land)"></span>land (spin +1)</div>
-  <div class="lg"><span class="sw" style="background:var(--sea)"></span>sea (spin &minus;1)</div>
-  <div class="lg"><span class="sw" style="background:var(--sand)"></span>coast</div>
-  <div class="lg"><span class="sw" style="background:var(--clamp)"></span>your constraint</div>
-
-  <div class="note" id="seamNote">Tile borders are hidden. Turn them on to see where the joins
-    are &mdash; the seam bond measures <b>z&nbsp;=&nbsp;&minus;1.4</b> against the interior
-    distribution, which is why you cannot find them by eye.</div>
-
-  <div class="note">The browser sampler is checked against THRML on the same stencil and weights:
-    largest deviation <b>0.027</b> in nearest-neighbour correlation across &beta;=0.18&ndash;0.40.
-    It is running the model, not an impression of it.</div>
-</aside>
+<div id="legend">
+  <div class="lg"><span class="sw" style="background:#5b9c3f"></span>land</div>
+  <div class="lg"><span class="sw" style="background:#2f6f9e"></span>sea</div>
+  <div class="lg"><span class="sw" style="background:#dcc38a"></span>coast</div>
+  <div class="lg"><span class="sw" style="background:#d59a52"></span>your constraint</div>
+</div>
 
 <script>
 "use strict";
-/* ── the world is ONE lattice with a settled mask ────────────────────────────────
-   Growing a tile means marking its cells free and sweeping only those, reading
-   neighbours from the whole world. Settled cells therefore act as boundary conditions
-   automatically, which gives exact conditioning with the correct Markov blanket and no
-   halo bookkeeping. Measured: a 1-cell halo leaves a visible seam (z = -2.99) while the
-   stencil's own reach does not, because the knight offsets span 2 cells.             */
-const T = 64;                    // tile edge, matching every measurement
-const NX = 5, NY = 4;            // world in tiles
-const W = T*NX, H = T*NY;
-const NN = [[1,0],[-1,0],[0,1],[0,-1]];
-const KN = [[2,1],[1,2],[-2,1],[1,-2],[2,-1],[-1,2],[-2,-1],[-1,-2]];
-const A = 1.0, B = 0.18;
+/* ── stencils ────────────────────────────────────────────────────────────────
+   Z1 is the real device graph from arXiv:2608.01615 SII B 1: a node at (x,y) with
+   connection rule (a,b) couples to (x+a,y+b), (x-b,y+a), (x-a,y-b), (x+b,y-a); the
+   rules are (1,0) (2,1) (2,3) (4,1), giving degree 16. Every offset has dx+dy odd,
+   so the graph is bipartite -- the same property our own stencil was designed for,
+   which turned out to be the constraint the hardware actually enforces.
+   "ours" is the degree-12 stencil the earlier work used. Four of its offsets do not
+   exist on Z1, but the physics measured on both agrees: quench NN 0.880 vs 0.891,
+   feature 7.8 vs 8.7 cells, cross-world correlation -0.019 vs -0.016.            */
+const rot4=(a,b)=>[[a,b],[-b,a],[-a,-b],[b,-a]];
+const STENCILS={
+  z1:{ label:'Z1', offs:[].concat(...[[1,0],[2,1],[2,3],[4,1]].map(r=>rot4(r[0],r[1])))
+                       .map(d=>({d,w:1.0})),
+       band:[0.10,0.15],
+       hint:"Z1's real connection rules (1,0) (2,1) (2,3) (4,1), each with four rotations. "+
+            "Every offset has dx+dy odd, so the lattice is a chessboard &mdash; the chip is "+
+            "bipartite by construction, which is why a sweep is two parallel steps." },
+  ours:{ label:'ours',
+       offs:[[1,0],[-1,0],[0,1],[0,-1]].map(d=>({d,w:1.0}))
+        .concat([[2,1],[1,2],[-2,1],[1,-2],[2,-1],[-1,2],[-2,-1],[-1,-2]].map(d=>({d,w:0.18}))),
+       band:[0.26,0.30],
+       hint:"The degree-12 stencil the earlier measurements used: 4 nearest at weight 1.0 plus "+
+            "8 knight moves at 0.18. Four of these offsets do not exist on Z1, so this one is "+
+            "not device-realizable &mdash; but the physics transfers." }
+};
+let stencil='z1';
+const S=id=>document.getElementById(id);
+const lcg=s=>{let x=s>>>0;return ()=>((x=(x*1664525+1013904223)>>>0)/4294967296);};
 
-const spin    = new Int8Array(W*H);
-const settled = new Uint8Array(W*H);
-const clamped = new Uint8Array(W*H);
-const tile    = new Uint8Array(NX*NY);
-let seed = (Math.random()*1e9)|0;
-let rnd  = lcg(seed);
-let showSeams = false, mode = 'grow';
+let T=64, NX=5, NY=4, W, H, spin, settled, clamped, tile, rnd, seed;
+let showSeams=false, mode='grow', SCALE=3;
 
-function lcg(s){ let x=s>>>0; return ()=>((x=(x*1664525+1013904223)>>>0)/4294967296); }
-const S = id => document.getElementById(id);
+function reset(tile_size){
+  T=tile_size; W=T*NX; H=T*NY;
+  spin=new Int8Array(W*H); settled=new Uint8Array(W*H);
+  clamped=new Uint8Array(W*H); tile=new Uint8Array(NX*NY);
+  seed=(Math.random()*1e9)|0; rnd=lcg(seed);
+  sizeCanvas();
+}
+function sizeCanvas(){
+  const availW=innerWidth-40, availH=innerHeight-96;
+  /* Backing store stays at an integer cell scale so every cell is a whole number of
+     device pixels, then CSS stretches it to fill the freed space. image-rendering:pixelated
+     keeps the edges crisp, so the display scale need not be an integer. */
+  SCALE=Math.max(1,Math.min(Math.floor(availW/W), Math.floor(availH/H)));
+  const cv=S('map'); cv.width=W*SCALE; cv.height=H*SCALE;
+  const fit=Math.min(availW/(W*SCALE), availH/(H*SCALE));
+  cv.style.width=(W*SCALE*fit)+'px'; cv.style.height=(H*SCALE*fit)+'px';
+  img=ctx.createImageData(W*SCALE,H*SCALE);
+}
+const cv=S('map'), ctx=cv.getContext('2d');
+let img;
 
-/** Local field at (i,j). Cells outside the world simply contribute nothing — an open
-    boundary. Measured: the ordering transition does not move between periodic and open
+/** Local field. Cells outside the world contribute nothing -- an open boundary.
+    Measured: the ordering transition does not move between periodic and open
     lattices (largest NN difference 0.032), so this costs nothing. */
 function field(i,j){
-  let h=0;
-  for(const [dx,dy] of NN){ const x=i+dx,y=j+dy;
-    if(x>=0&&x<W&&y>=0&&y<H&&settled[x*H+y]) h += A*spin[x*H+y]; }
-  for(const [dx,dy] of KN){ const x=i+dx,y=j+dy;
-    if(x>=0&&x<W&&y>=0&&y<H&&settled[x*H+y]) h += B*spin[x*H+y]; }
+  let h=0; const offs=STENCILS[stencil].offs;
+  for(let k=0;k<offs.length;k++){
+    const x=i+offs[k].d[0], y=j+offs[k].d[1];
+    if(x>=0&&x<W&&y>=0&&y<H&&settled[x*H+y]) h+=offs[k].w*spin[x*H+y];
+  }
   return h;
 }
-
-/** Sample one tile conditioned on everything already settled. */
+/** Sample one tile conditioned on everything already settled. beta is FIXED --
+    no schedule, no temperature change, so on hardware nothing is ever re-flashed.
+    Measured equivalent to a cyclic quench schedule at half the sweeps. */
 function growTile(tx,ty,beta,sweeps){
-  const t0=performance.now();
-  const x0=tx*T, y0=ty*T;
+  const t0=performance.now(), x0=tx*T, y0=ty*T;
   for(let i=x0;i<x0+T;i++) for(let j=y0;j<y0+T;j++){
-    const id=i*H+j;
-    if(clamped[id]) continue;
-    spin[id] = rnd()<0.5 ? 1 : -1;      // disordered start; the quench does the rest
-    settled[id]=1;
+    const id=i*H+j; if(clamped[id]) continue;
+    spin[id]=rnd()<0.5?1:-1; settled[id]=1;
   }
-  for(let s=0;s<sweeps;s++){
-    for(let colour=0;colour<2;colour++){
+  for(let s=0;s<sweeps;s++)
+    for(let colour=0;colour<2;colour++)
       for(let i=x0;i<x0+T;i++) for(let j=y0;j<y0+T;j++){
         if(((i+j)&1)!==colour) continue;
-        const id=i*H+j;
-        if(clamped[id]) continue;
-        spin[id] = rnd() < 1/(1+Math.exp(-2*beta*field(i,j))) ? 1 : -1;
+        const id=i*H+j; if(clamped[id]) continue;
+        spin[id]=rnd()<1/(1+Math.exp(-2*beta*field(i,j)))?1:-1;
       }
-    }
-  }
   tile[ty*NX+tx]=1;
   return performance.now()-t0;
 }
 
-/* ── rendering ───────────────────────────────────────────────────────────────── */
-const cv=S('map'), ctx=cv.getContext('2d');
-const SCALE=3;
-cv.width=W*SCALE; cv.height=H*SCALE;
-const img=ctx.createImageData(W*SCALE,H*SCALE);
-const COL={land:[91,156,63], sea:[47,111,158], sand:[220,195,138],
-           clamp:[213,154,82], empty:[16,22,27], seam:[70,90,104]};
+const COL={land:[91,156,63],sea:[47,111,158],sand:[220,195,138],
+           clamp:[213,154,82],empty:[16,22,27],seam:[70,90,104]};
 function isCoast(i,j){
   if(spin[i*H+j]!==1) return false;
-  for(const [dx,dy] of NN){ const x=i+dx,y=j+dy;
-    if(x<0||x>=W||y<0||y>=H) continue;
-    if(settled[x*H+y] && spin[x*H+y]===-1) return true; }
+  for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+    const x=i+d[0],y=j+d[1]; if(x<0||x>=W||y<0||y>=H) continue;
+    if(settled[x*H+y]&&spin[x*H+y]===-1) return true;
+  }
   return false;
 }
 function draw(){
   const d=img.data;
   for(let i=0;i<W;i++) for(let j=0;j<H;j++){
     const id=i*H+j;
-    let c = !settled[id] ? COL.empty
-          : clamped[id]  ? COL.clamp
-          : isCoast(i,j) ? COL.sand
-          : spin[id]===1 ? COL.land : COL.sea;
-    if(showSeams && (i%T===0 || j%T===0)) c=COL.seam;
+    let c=!settled[id]?COL.empty:clamped[id]?COL.clamp:isCoast(i,j)?COL.sand:
+          spin[id]===1?COL.land:COL.sea;
+    if(showSeams&&(i%T===0||j%T===0)) c=COL.seam;
     for(let a=0;a<SCALE;a++) for(let b=0;b<SCALE;b++){
-      const px=((j*SCALE+b)*W*SCALE + (i*SCALE+a))*4;
-      d[px]=c[0]; d[px+1]=c[1]; d[px+2]=c[2]; d[px+3]=255;
+      const px=((j*SCALE+b)*W*SCALE+(i*SCALE+a))*4;
+      d[px]=c[0];d[px+1]=c[1];d[px+2]=c[2];d[px+3]=255;
     }
   }
   ctx.putImageData(img,0,0);
 }
-
-/* ── measured readouts, computed from the world rather than assumed ───────────── */
 function featureSize(){
-  const pts=[]; for(let i=0;i<W;i++) for(let j=0;j<H;j++) if(settled[i*H+j]) pts.push(i*H+j);
-  if(pts.length<64) return 0;
-  let m=0; for(const p of pts) m+=spin[p]; m/=pts.length;
-  let v=0; for(const p of pts) v+=(spin[p]-m)*(spin[p]-m); v/=pts.length;
+  let n=0,m=0; for(let i=0;i<W*H;i++) if(settled[i]){n++;m+=spin[i];}
+  if(n<64) return 0; m/=n;
+  let v=0; for(let i=0;i<W*H;i++) if(settled[i]) v+=(spin[i]-m)*(spin[i]-m); v/=n;
   if(v<1e-9) return 0;
   for(let L=1;L<32;L++){
-    let c=0,n=0;
+    let c=0,k=0;
     for(let i=0;i+L<W;i++) for(let j=0;j<H;j++){
       const a=i*H+j,b=(i+L)*H+j;
-      if(settled[a]&&settled[b]){ c+=(spin[a]-m)*(spin[b]-m); n++; }
+      if(settled[a]&&settled[b]){c+=(spin[a]-m)*(spin[b]-m);k++;}
     }
-    if(n<32) break;
-    if((c/n)/v < 1/Math.E) return L;
+    if(k<32) break;
+    if((c/k)/v<1/Math.E) return L;
   }
   return 32;
 }
 function stats(){
   let n=0,land=0,sum=0,ck=0;
-  for(let i=0;i<W*H;i++){ if(clamped[i])ck++; if(!settled[i])continue;
-    n++; sum+=spin[i]; if(spin[i]===1)land++; }
-  const nt=tile.reduce((a,b)=>a+b,0);
-  S('i_t').textContent=nt+' / '+(NX*NY);
+  for(let i=0;i<W*H;i++){ if(clamped[i])ck++; if(!settled[i])continue; n++; sum+=spin[i]; if(spin[i]===1)land++; }
+  const nt=tile.reduce((a,b)=>a+b,0), beta=+S('sb').value/100, band=STENCILS[stencil].band;
+  S('i_t').textContent=nt+' / '+(NX*NY); S('b_t').textContent=nt+'/'+(NX*NY);
   S('i_c').textContent=n.toLocaleString();
   S('i_k').textContent=ck.toLocaleString();
-  S('i_l').textContent=n? (100*land/n).toFixed(1)+'%' : '—';
+  S('i_l').textContent=n?(100*land/n).toFixed(1)+'%':'—';
   const m=n?Math.abs(sum/n):0;
   S('i_m').textContent=n?m.toFixed(3):'—';
-  S('i_m').className = m>0.85?'bad':(m>0.5?'warn':'ok');
-  S('i_f').textContent=n? featureSize()+' cells' : '—';
-  const beta=+S('sb').value/100;
-  S('i_b').textContent=(beta<0.26?'below':(beta>0.30?'above':'in the band'));
-  S('i_b').className = beta<0.26?'cool':(beta>0.30?'ok':'warn');
-  /* Running long is a lottery, not a longer bake: 24 independent quenches at beta=0.50
+  S('i_m').className=m>0.85?'bad':(m>0.5?'warn':'ok');
+  S('i_f').textContent=n?featureSize()+' cells':'—';
+  S('i_b').textContent=beta<band[0]?'below':(beta>band[1]?'above':'in the band');
+  S('i_b').className=beta<band[0]?'cool':(beta>band[1]?'ok':'warn');
+  /* Running long past ordering is a lottery, not a longer bake: 24 independent quenches
      split 8 two-phase / 16 single-domain with NOTHING in between. Warn rather than let
      someone conclude the generator is unreliable. */
-  const sw=+S('ss').value;
-  const L=S('lottery');
-  if(sw>200 && beta>0.34){
-    L.style.display='block';
-    L.innerHTML='At this depth and sweep count the outcome bifurcates &mdash; measured '+
-      '<b>8 of 24</b> runs freeze two-phase and <b>16 of 24</b> collapse to a single domain, '+
-      'with none in between. Shorter is not a worse bake, it is a different regime.';
-  } else L.style.display='none';
+  const sw=+S('ss').value, note=S('note');
+  if(sw>200&&beta>band[1]*1.5){
+    note.style.display='block';
+    note.innerHTML='Deep and long: the outcome bifurcates here. Measured <b>8 of 24</b> runs '+
+      'freeze two-phase and <b>16 of 24</b> collapse to one domain, none in between. Shorter is '+
+      'a different regime, not a worse bake.';
+  } else note.style.display='none';
 }
 
-/* ── interaction ─────────────────────────────────────────────────────────────── */
 function cellFromEvent(e){
   const r=cv.getBoundingClientRect();
-  const i=Math.floor((e.clientX-r.left)/r.width*W);
-  const j=Math.floor((e.clientY-r.top)/r.height*H);
+  const i=Math.floor((e.clientX-r.left)/r.width*W), j=Math.floor((e.clientY-r.top)/r.height*H);
   return (i>=0&&i<W&&j>=0&&j<H)?[i,j]:null;
 }
 function touchesWorld(tx,ty){
-  if(tile.reduce((a,b)=>a+b,0)===0) return true;      // first tile can go anywhere
-  for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
-    const x=tx+dx,y=ty+dy;
+  if(tile.reduce((a,b)=>a+b,0)===0) return true;
+  for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+    const x=tx+d[0],y=ty+d[1];
     if(x>=0&&x<NX&&y>=0&&y<NY&&tile[y*NX+x]) return true;
   }
   return false;
@@ -293,9 +359,9 @@ function touchesWorld(tx,ty){
 let painting=false;
 function paintAt(e){
   const c=cellFromEvent(e); if(!c) return;
-  const [i,j]=c, v = mode==='land'?1:-1;
+  const v=mode==='land'?1:-1;
   for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++){
-    const x=i+a,y=j+b; if(x<0||x>=W||y<0||y>=H) continue;
+    const x=c[0]+a,y=c[1]+b; if(x<0||x>=W||y<0||y>=H) continue;
     const id=x*H+y; clamped[id]=1; settled[id]=1; spin[id]=v;
   }
   draw(); stats();
@@ -304,55 +370,83 @@ cv.addEventListener('pointerdown',e=>{
   if(mode==='grow'){
     const c=cellFromEvent(e); if(!c) return;
     const tx=Math.floor(c[0]/T), ty=Math.floor(c[1]/T);
-    if(tile[ty*NX+tx]) return;
-    if(!touchesWorld(tx,ty)) return;
-    const ms=growTile(tx,ty,+S('sb').value/100,+S('ss').value);
-    S('i_ms').textContent=ms.toFixed(0);
+    if(tile[ty*NX+tx]||!touchesWorld(tx,ty)) return;
+    S('i_ms').textContent=growTile(tx,ty,+S('sb').value/100,+S('ss').value).toFixed(0);
     draw(); stats();
   } else { painting=true; cv.setPointerCapture(e.pointerId); paintAt(e); }
 });
-cv.addEventListener('pointermove',e=>{ if(painting) paintAt(e); });
+cv.addEventListener('pointermove',e=>{if(painting)paintAt(e)});
 cv.addEventListener('pointerup',()=>painting=false);
 
+/* ── drawer ─────────────────────────────────────────────────────────────────── */
+const drawer=S('drawer'), handle=S('handle');
+function toggleDrawer(force){
+  const open=force!==undefined?force:!drawer.classList.contains('open');
+  drawer.classList.toggle('open',open);
+  handle.setAttribute('aria-expanded',String(open));
+  handle.innerHTML=open?'Controls &#9652;':'Controls &#9662;';
+}
+handle.addEventListener('click',()=>toggleDrawer());
+addEventListener('keydown',e=>{
+  if(e.key==='Escape') toggleDrawer(false);
+  if(e.key==='c'&&e.target===document.body) toggleDrawer();
+});
+
+for(const [id,s] of [['stZ1','z1'],['stOurs','ours']])
+  S(id).addEventListener('click',()=>{
+    stencil=s;
+    S('stZ1').classList.toggle('on',s==='z1'); S('stOurs').classList.toggle('on',s==='ours');
+    S('vst').textContent=STENCILS[s].label;
+    S('b_st').textContent=(s==='z1'?'Z1 / 16':'ours / 12');
+    S('stHint').innerHTML=STENCILS[s].hint;
+    const b=STENCILS[s].band;
+    S('bHint').innerHTML=`Ordering sets in near <b>&beta; = ${b[0].toFixed(2)}&ndash;${b[1].toFixed(2)}</b>`+
+      ` on this stencil. Below it, noise; above it, domains.`;
+    stats();
+  });
 for(const [id,m] of [['mGrow','grow'],['mLand','land'],['mSea','sea']])
   S(id).addEventListener('click',()=>{
     mode=m;
     for(const q of ['mGrow','mLand','mSea']) S(q).classList.toggle('on',q===id);
-    S('modeHint').textContent = m==='grow'
-      ? 'Click any empty tile touching the world to sample it, conditioned on its neighbours.'
-      : 'Drag on the map to clamp cells. Re-roll and the world changes while your constraint holds.';
+    S('modeHint').textContent=m==='grow'
+      ?'Click any empty tile touching the world to sample it, conditioned on its neighbours.'
+      :'Drag on the map to clamp cells. Re-roll and the world changes while your constraint holds.';
   });
-
 S('reseed').addEventListener('click',()=>{
   seed=(Math.random()*1e9)|0; rnd=lcg(seed);
   const placed=[]; for(let t=0;t<NX*NY;t++) if(tile[t]) placed.push(t);
-  for(let i=0;i<W*H;i++) if(!clamped[i]){ settled[i]=0; spin[i]=0; }
+  for(let i=0;i<W*H;i++) if(!clamped[i]){settled[i]=0;spin[i]=0;}
   tile.fill(0);
   for(const t of placed) growTile(t%NX,(t/NX)|0,+S('sb').value/100,+S('ss').value);
   draw(); stats();
 });
-S('clear').addEventListener('click',()=>{
-  spin.fill(0); settled.fill(0); clamped.fill(0); tile.fill(0);
-  S('i_ms').textContent='—'; draw(); stats();
+S('clear').addEventListener('click',()=>{ reset(T); draw(); stats(); });
+S('fill').addEventListener('click',()=>{
+  let ms=0;
+  for(let pass=0;pass<4;pass++)
+    for(let ty=0;ty<NY;ty++) for(let tx=0;tx<NX;tx++)
+      if(!tile[ty*NX+tx]&&touchesWorld(tx,ty))
+        ms+=growTile(tx,ty,+S('sb').value/100,+S('ss').value);
+  S('i_ms').textContent=ms.toFixed(0)+' total';
+  draw(); stats();
 });
 S('tSeams').addEventListener('click',()=>{
-  showSeams=!showSeams;
-  S('tSeams').classList.toggle('on',showSeams);
-  S('seamNote').innerHTML = showSeams
-    ? 'Borders shown. Compare a coastline crossing a border against one inside a tile &mdash; '+
-      'the seam bond measures <b>z = &minus;1.4</b> against the interior distribution.'
-    : 'Tile borders are hidden. Turn them on to see where the joins are &mdash; the seam bond '+
-      'measures <b>z = &minus;1.4</b> against the interior distribution, which is why you '+
-      'cannot find them by eye.';
-  draw();
+  showSeams=!showSeams; S('tSeams').classList.toggle('on',showSeams); draw();
+});
+S('st').addEventListener('input',()=>{
+  S('vt').textContent=S('st').value;
+  reset(+S('st').value); draw(); stats();
 });
 for(const id of ['sb','ss']) S(id).addEventListener('input',()=>{
-  S('vb').textContent=(+S('sb').value/100).toFixed(2);
-  S('vs').textContent=S('ss').value; stats();
+  const b=(+S('sb').value/100).toFixed(2);
+  S('vb').textContent=b; S('b_beta').textContent=b;
+  S('vs').textContent=S('ss').value; S('b_sw').textContent=S('ss').value;
+  stats();
 });
+addEventListener('resize',()=>{ sizeCanvas(); draw(); });
 
-/* seed the world with one tile so the page is not empty on arrival */
-growTile(2,1,0.50,60);
+reset(64);
+growTile(2,1,0.14,60);
 draw(); stats();
 </script>
 </body>
