@@ -131,6 +131,7 @@
     <span class="badge">21 quenches, mean r&nbsp;<b>&minus;0.02</b></span>
     <span class="badge">reproduces on spins&nbsp;<b>in THRML</b></span>
     <span class="badge">conditional worlds&nbsp;<b>6/6</b></span>
+    <span class="badge">device stencil&nbsp;<b>results transfer</b></span>
     <span class="badge">hardware&nbsp;<b>none &mdash; contingent</b></span>
   </div>
 </div></header>
@@ -217,6 +218,21 @@
     a zero at <code>Q&#7522;&#8323;</code> means cells <em>i</em> and <em>j</em> are conditionally
     independent given everything else. Sparse precision is what makes the model local, and locality is
     what makes it executable on hardware where each cell talks only to its neighbours.</p>
+  <div class="call honest">
+    <div class="t">Added after the architecture was confirmed</div>
+    <p>Extropic have since described the Z1 device (<a href="https://arxiv.org/abs/2608.01615">arXiv:2608.01615</a>
+      &sect;II&nbsp;B&nbsp;1). Its connection rules are <code>(1,0) (2,1) (2,3) (4,1)</code>, each with four
+      rotations &mdash; <strong>degree 16</strong> &mdash; and every offset has <code>dx+dy</code> odd, so the
+      chip is a chessboard and <strong>bipartite by construction</strong>. Two-colourability was adopted here
+      as a design choice; it is what the hardware physically enforces.</p>
+    <p>The stencil used throughout this paper is <strong>not</strong> device-realizable: it uses both knight
+      families, and Z1 has only <code>(2,1)</code>. Four of our twelve offsets do not exist on the chip, and
+      the entire <code>(2,3)</code> and <code>(4,1)</code> families go unused. Re-running the protocol on Z1's
+      own rules, the results transfer: quench NN correlation <b>0.891</b> against 0.880, feature size
+      <b>8.7</b> cells against 7.8, mean pairwise correlation between successive worlds <b>&minus;0.0163</b>
+      against &minus;0.0191, and zero colouring violations. The physics is not an artifact of the lattice we
+      invented, but the lattice should be theirs.</p>
+  </div>
   <p>We take <code>Q</code> to be the discretised SPDE operator of Lindgren, Rue and Lindstr&ouml;m,
     <code>(&kappa;&sup2; &minus; &Delta;)</code>, extended with the eight knight-move offsets so the
     stencil reaches degree 12 while remaining two-colourable:</p>
@@ -621,7 +637,19 @@
     offers, and on spins it is available at every temperature rather than only below a stability boundary.</p>
   <div class="call honest">
     <div class="t">The conditional, stated plainly</div>
-    <p>Whether any of this is <em>efficient</em> depends on hardware that was not used here. On a GPU this
+    <p><b>Update.</b> The architecture question is now answered: everything compiles to an
+      <em>undirected</em> energy and is sampled by block Gibbs, confirmed directly by Extropic and detailed in
+      <a href="https://arxiv.org/abs/2608.01615">arXiv:2608.01615</a>. Their published per-node figures, from a
+      device model rather than silicon: a Gibbs update costs <b>7.09&nbsp;fJ</b>, a read <b>1.692&nbsp;pJ</b>
+      (~239 updates), and a <b>write &mdash; couplings, biases <em>or clamp state</em> &mdash; 153.6&nbsp;pJ</b>,
+      about <b>21,700 updates</b>, with guidance to re-flash no more than about once per second.</p>
+    <p>That reshapes the programming model in a way worth stating plainly, because it vindicates a result this
+      paper reports as a <em>negative</em> one. &sect;7 found the periodic schedule statistically identical to
+      restarting from random and twice the cost. Gibbs runs at <em>fixed</em> couplings and temperature, so a
+      &beta; change is a write: a schedule that quenches every 40&ndash;80 sweeps exceeds the flash budget by
+      four to five orders of magnitude. <strong>Fixed-&beta; restarts cost nothing and were already measured
+      equivalent.</strong> The refutation turned out to be the hardware-native formulation.</p>
+    <p>Whether any of this is <em>efficient</em> still depends on hardware nobody here has run. On a GPU this
       is strictly worse than calling a noise function. The precondition is that sampling is the dominant
       cost of the target problem and that a TSU performs it far more cheaply than a GPU; terrain
       generation as posed here does <strong>not</strong> obviously satisfy the first half of that, since
@@ -675,7 +703,11 @@
   <h2><span class="num">12</span>What is not established</h2>
   <ul>
     <li><strong>No energy measurement, no hardware.</strong> Every efficiency claim about a TSU is a
-      conditional and is marked as one.</li>
+      conditional and is marked as one. The per-node figures quoted in &sect;10 are Extropic's, from a device
+      model, not anyone's measurement on silicon.</li>
+    <li><strong>The stencil is ours, not the device's.</strong> Every number in this paper is measured on a
+      degree-12 lattice that Z1 cannot realize. The protocol has been re-run on Z1's own rules and transfers
+      (&sect;2), but the figures below have not been regenerated on it.</li>
     <li><strong>&beta;=4 is untested in the demo.</strong> Spectral synthesis says it fixes the length-scale
       problem; the live sampler still runs &beta;=2.</li>
     <li><strong>The 1.05 band collapse is unexplained.</strong> Two candidate mechanisms were tested and
