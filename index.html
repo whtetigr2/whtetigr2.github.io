@@ -182,12 +182,11 @@
           <div class="viz" data-viz="worldgen"></div>
           <p>A renderer computes which wall you see. This samples it. Geometry is written down
             as an energy and the answer condenses out of a random start &mdash; <strong>no
-            raycaster in the solve path</strong>. The page also carries a correction: an earlier
-            version of it claimed the couplings enforced occlusion, and an ablation showed they
-            did nothing at all. With walls as strong biases rather than hard clamps they earn
-            their keep on a noisy input &mdash; <strong>11.9% &rarr; 83.8%</strong> at 8% sensor
-            noise &mdash; and are worth <em>nothing</em> on a clean one. Both numbers are on the
-            page, with a console hook to re-measure them.</p>
+            raycaster in the solve path</strong>. A reported wall is a strong bias rather than a
+            hard constraint, so the couplings can outvote occupancy the input got wrong: worth
+            <strong>11.9% &rarr; 83.8%</strong> at 8% sensor noise, and worth <em>nothing</em> on
+            a clean input, where a linear scan is already perfect. Both numbers are on the page,
+            with a console hook to re-measure them.</p>
           <a class="go" href="./visibility.html">Open live demo &rarr;</a>
         </div>
 

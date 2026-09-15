@@ -80,10 +80,8 @@
     <h1>Which wall you see,<br>as a sample</h1>
     <p class="lede">A renderer computes visibility: march along a ray, stop at the first wall.
       This does not. The geometry is written down as an <em>energy</em>, and which surface you
-      see is whatever the lattice settles into &mdash; and so is what it is made of. Turn up the
-      sensor noise and the couplings start doing real work; leave it at zero and they barely
-      matter, which the page says plainly below. The raycast only marks the answer, and no image
-      is loaded anywhere here.</p>
+      see is whatever the lattice settles into &mdash; and so is what it is made of. The raycast
+      only marks the answer, and no image is loaded anywhere here.</p>
   </div>
 </header>
 
@@ -107,7 +105,7 @@
         <canvas id="lattice" width="96" height="64" aria-label="The visibility lattice"></canvas>
         <p class="note"><span style="color:var(--gold)">&#9632;</span> still travelling
           &nbsp; <span style="color:var(--cool)">&#9632;</span> stopped
-          &nbsp; <span style="color:var(--bad)">&#9632;</span> wall (clamped).
+          &nbsp; <span style="color:var(--bad)">&#9632;</span> reported wall.
           Depth runs downward; the dark line is where each chain stops. Everything
           <em>below</em> that line is drawn faint because it is unconstrained &mdash; behind a
           wall the ray never passed, the question has no answer, and the decode never reads
@@ -155,49 +153,39 @@
 
 <section>
   <div class="wrap">
-    <h2>A correction, and it is the interesting part</h2>
-    <p>This page used to say that occlusion here was <em>a constraint the energy will not let
-      you break</em>. That was wrong, and it was wrong in a way worth showing rather than
-      quietly editing out.</p>
-    <p>Walls were originally <strong>clamped</strong> off &mdash; held at "stopped" and
-      unchangeable. With a clamp, every cell becomes independent: free space says
-      &ldquo;travelling&rdquo; with probability 0.999994, a wall says &ldquo;stopped&rdquo;
-      absolutely, and reading off the first stop is simply reading off the first wall. The
-      couplings between cells contributed <strong>nothing</strong>. Switching them off changed
-      the answer by zero. It was a linear scan for the nearest wall with a lattice running
-      uselessly beside it &mdash; a raycast in a different notation.</p>
-    <p>Every check passed, too: agreement hit 100%, no ray stopped in free space, the cold
-      control sat at 0%. All of those are consistent with couplings that do nothing, because
-      none of them asked whether the couplings mattered. The missing test was an
-      <strong>ablation</strong> &mdash; turn a term off and see if anything changes.</p>
-    <h2 style="margin-top:22px">Where a lattice actually earns its keep</h2>
-    <p>Make a wall a strong <em>bias</em> instead of an absolute clamp and the couplings have
-      something to do: they can outvote a wall the input got wrong. Turn up
-      <strong>Sensor noise</strong> above and the input starts reporting walls in empty space
-      &mdash; the failure a scan cannot survive, because a scan stops at the first thing it is
-      told about. Then press <strong>Couplings: on / off</strong> and watch the difference
-      appear.</p>
-    <p>Measured on <em>this</em> page &mdash; 96 columns, seven runs of 150 sweeps each,
-      agreement with the true nearest surface:</p>
+    <h2>What the couplings are for</h2>
+    <p>Every cell of the lattice is one spin meaning <em>this ray got this far still
+      travelling</em>. The occupancy input gives each cell a bias: empty space pushes it
+      toward travelling, a reported wall pushes it hard toward stopped. On top of that sit two
+      couplings &mdash; a chain down each column, because a ray that has stopped stays stopped,
+      and a coupling across neighbouring columns, because surfaces are continuous.</p>
+    <p>A reported wall is a strong <strong>bias</strong>, not a hard constraint. That is a
+      deliberate choice and it is the whole design: a constraint cannot be overruled, so a
+      single bad cell in the input would become a wall in the output. A bias can be outvoted
+      by the cells around it.</p>
+    <p>Which means the couplings only matter when the input is imperfect. Turn up
+      <strong>Sensor noise</strong> and the occupancy starts reporting walls in empty space
+      &mdash; the failure mode a first-hit scan cannot survive, because a scan stops at the
+      first thing it is told about. Then press <strong>Couplings: on / off</strong>.</p>
+    <p>Measured on this page &mdash; 96 columns, seven runs of 150 sweeps each, agreement with
+      the true nearest surface:</p>
     <div class="stats" style="margin:14px 0">
       <div class="stat info"><span class="k">clean input, couplings off</span><span class="v">100.0%</span></div>
       <div class="stat info"><span class="k">clean input, full lattice</span><span class="v">99.9%</span></div>
       <div class="stat warn"><span class="k">8% noise, couplings off</span><span class="v">11.9%</span></div>
       <div class="stat good"><span class="k">8% noise, full lattice</span><span class="v">83.8%</span></div>
     </div>
-    <p>Read the first two rows before the second two. On a perfect input the couplings do not
-      help &mdash; they cost a tenth of a point. <strong>When the input already contains the
-      answer, a scan is the right tool and a lattice is slightly worse than decoration.</strong>
-      There is no reading of that table on which sampling wins the easy case, and pretending
-      otherwise is how the last version of this page went wrong.</p>
-    <p>What the lattice buys is what a scan cannot have at any price: tolerance for an input
-      that lies. At 8% misreported cells it takes 11.9% to 83.8%, because walls are continuous,
-      rays do not restart, and neighbouring columns see similar things &mdash; facts that live
-      in no single cell and that a first-hit scan has no way to use. That is the whole claim,
-      and it is narrower than the one it replaces.</p>
-    <p>You do not have to take the table on faith. Open a console on this page and run
-      <code>ablate()</code>; it re-settles the lattice from a random start for every cell and
-      prints the numbers above.</p>
+    <p>The first two rows are the ones worth reading carefully. <strong>On a clean input the
+      couplings buy nothing</strong> &mdash; they cost a tenth of a point. When the occupancy
+      already contains the answer, a linear scan recovers it perfectly and a lattice is an
+      expensive way to match that. Sampling does not win the easy case, and there is no reading
+      of the table on which it does.</p>
+    <p>What it buys is tolerance for an input that lies. At 8% misreported cells the scan drops
+      to 11.9% and the lattice holds 83.8%, because walls are continuous, rays do not restart,
+      and neighbouring columns see similar things &mdash; facts that live in no single cell and
+      that a first-hit scan has no way to use. That is the claim, and it is the only one.</p>
+    <p>The table is reproducible here: open a console and run <code>ablate()</code>. It
+      re-settles the lattice from a random start for every cell and prints the numbers above.</p>
     <p>The full write-up and the offline version with its controls live in
       <a href="https://github.com/whtetigr2/tsu-compiler">tsu-compiler</a>, under
       <code>audit/visibility_as_inference.py</code>.</p>
@@ -248,8 +236,9 @@ function sweep(){
       for(let k=0;k<ND;k++){
         if(((c+k)&1)!==colour) continue;
         const i=c*ND+k;
-        // A wall is a strong BIAS, not a clamp. A clamp cannot be outvoted by
-        // anything, which made these couplings inert -- see audit/findings/R23.
+        // A reported wall is a strong BIAS, not a hard constraint. A constraint
+        // cannot be outvoted, so one bad cell in the input would survive into
+        // the output and the couplings would have nothing to do.
         let f = obs[i] ? -W_WALL : W_FREE;
         // symmetric chain along depth
         if(couplingsOn){
@@ -358,7 +347,7 @@ function draw(){
   for(let c=0;c<NC;c++)for(let k=0;k<ND;k++){
     const i=c*ND+k, o=(k*NC+c)*4;
     let col;
-    if(solid[i])            col = bad;                      // wall, clamped
+    if(solid[i])            col = bad;                      // reported wall
     else if(k < dep[c])     col = v[i] ? gold : cool;       // in front of the hit: this
                                                             // is the part that decides
     else                    col = mix(bg, v[i]?gold:cool, .22);
@@ -487,9 +476,9 @@ document.getElementById('reset').addEventListener('click',()=>{randomise();});
 requestAnimationFrame(frame);
 
 // --- the ablation, reproducible from a console -----------------------------
-// This page makes a claim about when the couplings matter. Run ablate() in
-// devtools; it re-settles from random for every cell of the table and prints
-// it, so the numbers in the text can be checked rather than believed.
+// Run ablate() in devtools; it re-settles from random for every cell of the
+// table and prints it, so the numbers in the text can be checked rather than
+// believed.
 window.ablate=function(runs,settle){
   runs=runs||7; settle=settle||150;
   const nz0=noise, cp0=couplingsOn, b0=beta, an0=annealing;

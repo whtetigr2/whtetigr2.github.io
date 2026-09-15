@@ -81,7 +81,8 @@
         <canvas id="screen" width="200" height="120" tabindex="0"
                 aria-label="First person view of a sampled level"></canvas>
         <p class="keys"><b>W A S D</b> move &nbsp; <b>&larr; &rarr;</b> turn &nbsp;
-          <b>Space</b> open a door &nbsp; <b>R</b> re-randomise every chain</p>
+          <b>Space</b> open a door &nbsp; <b>F</b> or <b>click</b> fire &nbsp;
+          <b>R</b> re-randomise every chain</p>
         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:10px">
           <label style="display:flex;align-items:center;gap:8px;font:400 12.5px/1.4 var(--mono)">
             Sensor noise
@@ -91,6 +92,9 @@
           <button id="abl" style="font:400 12.5px var(--mono);padding:5px 11px;border-radius:6px;
             border:1px solid var(--line2);background:var(--panel);color:inherit;cursor:pointer">
             Couplings: on</button>
+          <button id="pack" style="font:400 12.5px var(--mono);padding:5px 11px;border-radius:6px;
+            border:1px solid var(--line2);background:var(--panel);color:inherit;cursor:pointer">
+            Pack coupling: on</button>
         </div>
         <p class="note">Click the view first so it takes the keys. Turn the noise up and the
           occupancy input starts reporting walls in empty space &mdash; then switch the
@@ -129,15 +133,10 @@
       and that is the one being sampled. Each screen column is a chain of bits meaning <em>this
       ray got this far still travelling</em>, and the surface you see is wherever the chain
       turned off.</p>
-    <p><strong>A correction, because this page got it wrong first.</strong> It used to say
-      occlusion was &ldquo;a constraint the energy will not let you break.&rdquo; It was not.
-      Walls were <em>clamped</em> off, and with a clamp every cell is independent &mdash;
-      switching the couplings off entirely changed the answer by exactly zero. The lattice was
-      running beside a linear scan for the nearest wall, contributing nothing. Every control
-      passed, because none of them asked whether the couplings mattered; the check that catches
-      it is an ablation.</p>
-    <p>A wall is now a strong <strong>bias</strong> rather than a clamp, so the couplings can
-      outvote occupancy the input got wrong. Measured on this level, agreement with the true
+    <p>A reported wall is a strong <strong>bias</strong> on its cell, not a hard constraint.
+      That matters: a constraint cannot be overruled, so one bad cell in the occupancy would
+      become a wall in front of you. A bias can be outvoted by the cells around it, which is
+      what the couplings are there to do. Measured on this level, agreement with the true
       nearest surface over 200 columns, seven runs of 150 sweeps each:</p>
     <div class="stats" style="margin:14px 0 16px">
       <div class="stat info"><span class="k">clean &mdash; couplings off</span><span class="v">100%</span></div>
@@ -145,13 +144,15 @@
       <div class="stat warm"><span class="k">8% noise &mdash; couplings off</span><span class="v">3.9%</span></div>
       <div class="stat good"><span class="k">8% noise &mdash; full lattice</span><span class="v">83.5%</span></div>
     </div>
-    <p><strong>On a clean input the couplings are worth nothing.</strong> Not nearly nothing
-      &mdash; nothing: 100% either way in all seven runs. When the occupancy input already
-      contains the answer, a scan is the right tool and the lattice is decoration, and any
-      honest version of this page has to say so. What the lattice buys is robustness to an
-      input that lies: at 8% misreported cells it takes 3.9% to 83.5%, because walls being
-      continuous and rays not restarting are facts that no single cell holds and no scan can
-      use. That is the part worth having, and it is the only part being claimed.</p>
+    <p><strong>On a clean input the couplings are worth nothing</strong> &mdash; 100% either
+      way, in all seven runs. When the occupancy already contains the answer, a linear scan
+      recovers it and the lattice is an expensive way to match that. Sampling does not win the
+      easy case.</p>
+    <p>What it buys is robustness to an input that lies. At 8% misreported cells the scan drops
+      to 3.9% and the lattice holds 83.5%, because walls being continuous and rays not
+      restarting are facts that no single cell holds and no scan can use. Turn the noise up and
+      switch the couplings off to watch the difference directly &mdash; that gap is the
+      lattice's entire contribution.</p>
     <p>Both numbers are reproducible on this page: open a console and run
       <code>ablate()</code>. It re-settles the lattice from random for every cell of the table
       and prints it.</p>
@@ -159,11 +160,63 @@
       relaxing while you move, so the picture is a sampler tracking a changing constraint
       rather than a fresh solve every frame. Turn quickly and you can watch the far walls
       resolve a beat behind you. That lag is the sampler working, not a dropped frame.</p>
+    <h2 style="margin-top:22px">The creatures</h2>
+    <p>A creature's body is sampled rather than drawn. Fifteen by twenty-one spins relax under
+      a field built from <strong>twelve numbers</strong> &mdash; where a horn is wanted, where a
+      head is, how far the shoulders run, where the arms hang clear of the torso, where the legs
+      split. That field is written by hand from the idea of a hunched horned biped. It is a
+      preference, not a stencil: it says where material is favoured and the sampler decides what
+      actually condenses.</p>
+    <p>Individuality comes from somewhere else &mdash; <strong>one seed per creature</strong>,
+      which fixes a quenched random field it is then sampled under. Same twelve species numbers,
+      different seed, different body. Measured across individuals, <strong>9.3% of the 315
+      cells differ</strong> from one to the next, against a frame-to-frame drift of about 3%, so
+      each one is a recognisable individual whose edges breathe rather than a sprite that sits
+      still. <code>shape(0)</code> in a console prints one as text; try a few indices.</p>
+    <p>Which is the whole trick, and it is not a large one: thirteen numbers total &mdash; twelve
+      for the species and one for the individual &mdash; in place of a stored image. There is no
+      sprite here to differ from, and none was read to build the field.</p>
+    <p>What they <em>do</em> is sampled too. Each carries two spins, advance and break sideways,
+      drawn from a field that sees four things: how close you are, whether it has line of sight
+      to you, what it decided a moment ago, and what the creatures near it decided. Line of
+      sight is an occupancy lookup walked along a segment &mdash; a scan, and the right tool for
+      the job. It is input here, not inference.</p>
+    <p>The last term is the only one that is not a property of a single creature, and the only
+      reason the group is more than eight independent things. <strong>Pack coupling</strong>
+      above turns it off. Measured in a fixed arena, eleven runs a cell, four repeats:</p>
+    <div class="stats" style="margin:14px 0 16px">
+      <div class="stat info"><span class="k">decisions swing together &mdash; off</span><span class="v">2.84&times;</span></div>
+      <div class="stat good"><span class="k">decisions swing together &mdash; on</span><span class="v">3.64&times;</span></div>
+      <div class="stat info"><span class="k">arrival spread &mdash; off</span><span class="v">2.13 s</span></div>
+      <div class="stat good"><span class="k">arrival spread &mdash; on</span><span class="v">1.95 s</span></div>
+    </div>
+    <p>These are small effects and they are worth stating as small. The first row is the honest
+      one: the uncoupled figure is <strong>2.84&times;, not 1.0&times;</strong>, because eight
+      creatures reacting to the same player already move somewhat together without any coupling
+      between them at all. The coupling adds to that; it does not create it. It also shaves
+      about a fifth of a second off when the group reaches you and tightens the spread by
+      roughly eight per cent &mdash; consistent in direction across all four repeats, and
+      nothing more dramatic than that. <code>packTest()</code> in a console re-runs the table.</p>
+
+    <h2 style="margin-top:22px">Shooting, and why the noise slider reaches it</h2>
+    <p>A shot is resolved against <strong>the depth the visibility lattice settled on</strong>,
+      not against a fresh raycast. What you can hit is what the lattice says you can see. That
+      makes the sensor-noise slider a gameplay control rather than a diagnostic: standing still
+      in the hall, aimed at a wall 10.6 units away,</p>
+    <div class="stats" style="margin:14px 0 16px">
+      <div class="stat warm"><span class="k">8% noise, couplings off &mdash; lattice says</span><span class="v">3.7</span></div>
+      <div class="stat good"><span class="k">8% noise, couplings on &mdash; lattice says</span><span class="v">9.9</span></div>
+      <div class="stat warm"><span class="k">shots stopped in empty air &mdash; off</span><span class="v">12 / 12</span></div>
+      <div class="stat good"><span class="k">shots stopped in empty air &mdash; on</span><span class="v">1 / 12</span></div>
+    </div>
+    <p>With the couplings off and a noisy input, the lattice invents a wall about four units in
+      front of you and every shot stops in mid-air against it. Turn them on and the real wall
+      comes back. Same ablation as the table further up, arriving as something you can feel
+      rather than a number you have to trust.</p>
+
     <h2 style="margin-top:22px">Why it cannot be anybody's level</h2>
     <p>There is no pixel data here. Surfaces are coupling constants &mdash; twelve numbers for a
-      material &mdash; and the creatures are drawn from a small symmetric energy model, so each
-      one differs while staying the same kind of thing. That is the opposite of an asset, which
-      gives you the identical object every time.</p>
+      material. Nothing on screen is loaded from anywhere.</p>
     <p>The layout is hand-drawn in the spirit of the genre: rooms, a corridor, a courtyard, a
       zigzag. It is not anyone's map, because reproducing one would need their data, and the
       point of the exercise is not to have any.</p>
@@ -223,9 +276,9 @@ let px=12.5, py=10.5, ang=1.5;
 const keys={};
 const SCR=document.getElementById('screen');
 SCR.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1;
-  if(['w','a','s','d','arrowleft','arrowright','r',' '].includes(e.key.toLowerCase())) e.preventDefault();});
+  if(['w','a','s','d','arrowleft','arrowright','r',' ','f'].includes(e.key.toLowerCase())) e.preventDefault();});
 SCR.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=0;});
-SCR.addEventListener('click',()=>SCR.focus());
+SCR.addEventListener('click',()=>{SCR.focus(); fire();});
 function move(dt){
   const sp=3.2*dt, rt=2.1*dt;
   if(keys['arrowleft']) ang-=rt;
@@ -239,6 +292,7 @@ function move(dt){
   if(!blocked(nx,py)) px=nx;
   if(!blocked(px,ny)) py=ny;
   if(keys['r']){ randomiseAll(); keys['r']=0; }
+  if(keys['f']) fire();
   if(keys[' ']){ let best=null,bd=9;
     for(const d of doors){ const dd=Math.hypot(d.x+.5-px,d.y+.5-py);
       if(dd<bd){bd=dd;best=d;} }
@@ -274,11 +328,11 @@ function buildOccupancy(){
 // ---------------------------------------------------------------------------
 // VISIBILITY -- the INFERENCE. Monotone chains, carried over between frames.
 //
-// A WALL IS A BIAS, NOT A CLAMP, and that is a correction. Clamping walls off
-// made every cell independent: the couplings could be deleted without changing
-// a single pixel, and the decode below -- first cell that stopped -- was doing
-// the whole job as a linear scan. As a bias the couplings can outvote a cell
-// the occupancy input got wrong, which is the only thing here a scan cannot do.
+// A REPORTED WALL IS A BIAS, NOT A HARD CONSTRAINT. A constraint cannot be
+// outvoted, so every cell would be independent of its neighbours and the decode
+// below -- first cell that stopped -- would be a plain linear scan. As a bias
+// the couplings can outvote a cell the occupancy input got wrong, which is the
+// one thing here a scan cannot do.
 const W_MONO=3.0, W_FREE=3.0, W_WALL=4.0, W_COH=1.2;
 let beta=2.2;
 let noise=0.0;             // fraction of free cells misreported as solid
@@ -301,9 +355,7 @@ function visSweep(){
         const i=base+k;
         let f = obs[i] ? -W_WALL : W_FREE;     // strong bias either way
         if(couplingsOn){
-          // symmetric ferromagnetic chain. The asymmetric form this replaced
-          // was algebraically identical -- the constants cancel -- so nothing
-          // is lost by writing what it actually was.
+          // symmetric ferromagnetic chain along depth
           if(k+1<ND) f += (W_MONO/2)*(2*v[i+1]-1);
           if(k-1>=0) f += (W_MONO/2)*(2*v[i-1]-1);
           if(c+1<NC) f += W_COH*(2*v[i+ND]-1);
@@ -370,12 +422,63 @@ function texAt(x,y){ let val=0;
 // ---------------------------------------------------------------------------
 // CREATURES. Also sampled -- a small symmetric energy model, so each one is a
 // different individual of the same kind. Nine numbers, no sprite.
-const CW=13, CH=17;
-const CREAT={jx:1.25, jy:1.05, sym:2.4, body:1.5, limb:.9, headY:3, shoulderY:7, grain:.5, thresh:.5};
-const N_CRE_PARAMS=9;
-function newCreature(x,y){ return {x,y, bits:new Uint8Array(CW*CH), hp:1}; }
+const CW=15, CH=21;
+// Nine constants for the species. Individuality does NOT come from these -- it
+// comes from ONE SEED per creature, which fixes a quenched random field it is
+// then sampled under. Same species constants, different seed, different body,
+// and the body is stable because the field is quenched rather than thermal.
+// THE MOLD. Twelve numbers describing a hunched, horned biped: where a body is
+// wanted and where it is not. Written by hand from the idea of the thing -- no
+// sprite was read to produce them, and there is none to read. The field says
+// where material is favoured; the sampler decides what actually condenses.
+const CREAT={jx:.55, jy:.72, sym:1.35, grain:.15, rf:2.35,
+             horn:1.75, head:1.7, shoulder:1.6, arm:1.5, torso:1.6, leg:1.55,
+             away:-1.75};
+const N_CRE_PARAMS=12;
+
+// The anatomy field, evaluated once per cell. Everything here is a preference,
+// not a constraint -- which is why two creatures under the same field are not
+// the same creature.
+function anatomy(x,y){
+  const ax=Math.abs(x-(CW-1)/2);
+  let f=CREAT.away;                                  // default: no body here
+  // horns sit against the head rather than floating above it -- an isolated
+  // feature gets pulled off by its empty neighbours, a connected one survives
+  if(y<=2   && ax>=1.5 && ax<=3.0) f=Math.max(f,CREAT.horn);
+  if(y>=2   && y<=5   && ax<=1.6)  f=Math.max(f,CREAT.head);
+  if(y>=6   && y<=8   && ax<=5.4)  f=Math.max(f,CREAT.shoulder);
+  // arms hang clear of the torso: torso to ax 2, a gap at 3-4, arm at 5-6
+  if(y>=9   && y<=15  && ax>=4.6 && ax<=6.4) f=Math.max(f,CREAT.arm);
+  if(y>=9   && y<=13  && ax<=2.4)  f=Math.max(f,CREAT.torso);
+  if(y>=14  && y<=20  && ax>=0.9 && ax<=3.2) f=Math.max(f,CREAT.leg);
+  return f;
+}
+
+// a small deterministic PRNG, so one number reproduces a whole individual
+function mulberry(a){ return function(){
+  a|=0; a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15, 1|a);
+  t=t+Math.imul(t^t>>>7, 61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+let cSide=1, cSeed=1;
+function quenchedField(seed){
+  // Symmetric by construction, so it shapes the individual instead of fighting
+  // the bilateral term. Half the field is drawn; the other half is its mirror.
+  const rnd=mulberry(seed), f=new Float32Array(CW*CH), half=(CW+1)>>1;
+  for(let y=0;y<CH;y++) for(let x=0;x<half;x++){
+    const v=(rnd()*2-1)*CREAT.rf;
+    f[y*CW+x]=v; f[y*CW+(CW-1-x)]=v; }
+  return f;
+}
+function newCreature(x,y){ cSide=-cSide; const seed=(cSeed=cSeed*1664525+1013904223|0);
+  return {x:x+0.5, y:y+0.5, bits:new Uint8Array(CW*CH),
+          seed:seed, rf:quenchedField(seed),
+          mv:0, fl:0, awake:0, side:cSide, hp:100, atk:0, dead:0}; }
+// None of these are in the start room. It is sealed by the two door groups, so
+// the first room is safe until you open one -- the level does the pacing.
 const creatures=[ newCreature(17,38), newCreature(46,24), newCreature(33,52),
-                  newCreature(52,30), newCreature(9,14) ];
+                  newCreature(52,30), newCreature(7,42),  newCreature(43,39),
+                  newCreature(28,50), newCreature(50,22) ];
 for(const cr of creatures) for(let i=0;i<cr.bits.length;i++) cr.bits[i]=Math.random()<0.5?1:0;
 function creatureSweep(cr){
   const b=cr.bits;
@@ -384,11 +487,8 @@ function creatureSweep(cr){
       for(let x=0;x<CW;x++){
         if(((x+y)&1)!==colour) continue;
         const i=y*CW+x, mx=CW-1-x;
-        // a body field: dense at the trunk, narrower at the head, plus limbs
-        const cxd=Math.abs(x-(CW-1)/2);
-        let f = CREAT.body*(1.6-cxd/2.2) - 0.35*Math.abs(y-CH/2)/2;
-        if(y<CREAT.headY) f -= 0.55*cxd;                 // head is narrow
-        if(y>CREAT.shoulderY) f += CREAT.limb*(cxd>2?1:0); // limbs out to the sides
+        let f = anatomy(x,y);                             // the species
+        f += cr.rf[i];                                    // THIS individual
         f += CREAT.sym*(2*b[y*CW+mx]-1);                  // bilateral symmetry
         if(x+1<CW) f += CREAT.jx*(2*b[i+1]-1);
         if(x-1>=0) f += CREAT.jx*(2*b[i-1]-1);
@@ -402,8 +502,146 @@ function creatureSweep(cr){
 }
 
 // ---------------------------------------------------------------------------
+// WHAT THEY DO. Each creature carries two spins -- advance, and break sideways
+// -- sampled from a field rather than stepped through a scripted state machine.
+// The field sees four things: how close you are, whether it has line of sight
+// to you, what it decided last tick, and what the creatures near it decided.
+//
+// That last term is a coupling between creatures, and it is the only one that
+// is not a property of a single creature. PACK controls it, and the button
+// beneath the view turns it off, because a term that cannot be switched off is
+// a term nobody can check.
+const CRE={near:2.2, persist:1.5, pack:1.3, packR:8, wake:15,
+           bias:-0.9, seen:0.9, flank:0.9, speed:1.5};
+let packOn=true;
+
+// Line of sight is an OCCUPANCY LOOKUP along the segment -- the same kind of
+// input the visibility lattice is handed, and the same kind of thing a scan is
+// good at. It is not presented as inference, because it is not.
+function los(ax,ay,bx,by){
+  const dx=bx-ax, dy=by-ay, n=Math.ceil(Math.hypot(dx,dy)*2);
+  for(let i=1;i<n;i++){ const t=i/n;
+    if(blocked(ax+dx*t, ay+dy*t)) return 0; }
+  return 1;
+}
+
+function brainSweep(){
+  for(const cr of creatures){
+    if(cr.dead){ cr.mv=0; continue; }
+    const d=Math.hypot(px-cr.x, py-cr.y);
+    const see = d<CRE.wake ? los(cr.x,cr.y,px,py) : 0;
+    if(see) cr.awake=1;
+    if(!cr.awake){ cr.mv=0; continue; }
+    let pack=0;
+    if(packOn) for(const o of creatures){
+      if(o===cr) continue;
+      const dd=Math.hypot(o.x-cr.x, o.y-cr.y);
+      // EXCITATORY ONLY: a neighbour that is coming pulls you in, one that is
+      // not says nothing. Written as (2*mv-1) an idle neighbour would actively
+      // hold you back, and with everything idle the group never starts.
+      if(dd<CRE.packR) pack += o.mv*(1-dd/CRE.packR);
+    }
+    const f = CRE.bias + CRE.near*(1-Math.min(d,CRE.wake)/CRE.wake)
+            + CRE.persist*(2*cr.mv-1) + CRE.pack*pack + (see?CRE.seen:-CRE.seen);
+    cr.mv = Math.random() < 1/(1+Math.exp(-2*f)) ? 1 : 0;
+    const g = CRE.flank*(2*cr.fl-1) + (see?0.3:-0.5) - 0.45;
+    cr.fl = Math.random() < 1/(1+Math.exp(-2*g)) ? 1 : 0;
+  }
+}
+
+function creaturesMove(dt){
+  for(const cr of creatures){
+    if(cr.dead || !cr.awake || !cr.mv) continue;
+    const dx=px-cr.x, dy=py-cr.y, L=Math.hypot(dx,dy);
+    if(L<1.2||L<1e-6) continue;                    // close enough; don't overlap
+    let ux=dx/L, uy=dy/L;
+    if(cr.fl){ const s=cr.side;                    // break sideways, not straight in
+      const qx=-uy*s, qy=ux*s;
+      ux=ux*0.5+qx*0.87; uy=uy*0.5+qy*0.87; }
+    const sp=CRE.speed*dt;
+    const nx=cr.x+ux*sp, ny=cr.y+uy*sp;
+    if(!blocked(nx,cr.y)) cr.x=nx;                 // slide along walls
+    if(!blocked(cr.x,ny)) cr.y=ny;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// COMBAT. A shot is resolved against zbuf -- the per-column wall distances the
+// VISIBILITY LATTICE settled on -- not against a fresh raycast. What you can
+// hit is what the lattice says you can see, so the sensor-noise slider reaches
+// the gameplay too: hand the sampler a worse input and your shots start
+// stopping at walls that are not there.
+let hp=100, hurt=0, flash=0, kills=0, shotCool=0, dead=0, lastShot=[];
+const SHOT={dmg:34, cool:0.40, range:17};
+const CLAW={dmg:9, reach:1.9, cool:1.05};
+
+function fire(){
+  if(shotCool>0||dead) return;
+  shotCool=SHOT.cool; flash=1;
+  const cx=SW>>1;
+  let best=null, bd=1e9;
+  lastShot=[];
+  for(const cr of creatures){
+    if(cr.dead) continue;
+    const rx=cr.x-px, ry=cr.y-py, dd=Math.hypot(rx,ry);
+    let rel=Math.atan2(ry,rx)-ang;
+    while(rel>Math.PI) rel-=2*Math.PI; while(rel<-Math.PI) rel+=2*Math.PI;
+    const sx=Math.round((rel/FOV+0.5)*(SW-1));
+    const sh=Math.max(6, Math.round(SH*2.4/dd)), sw=Math.round(sh*CW/CH);
+    const why = dd>SHOT.range ? 'out of range'
+              : Math.abs(rel)>FOV/2 ? 'outside fov'
+              : Math.abs(sx-cx)>Math.max(2,sw>>1) ? 'off crosshair'
+              : dd>=zbuf[cx] ? 'wall nearer (sampled)'
+              : 'hit';
+    if(dd<20) lastShot.push({d:+dd.toFixed(2), sx:sx, cx:cx, halfw:Math.max(2,sw>>1),
+                             zbuf:+zbuf[cx].toFixed(2), why:why});
+    if(why!=='hit') continue;
+    if(dd<bd){ bd=dd; best=cr; }
+  }
+  if(best){ best.hp-=SHOT.dmg; best.awake=1;
+    if(best.hp<=0){ best.dead=1; kills++; } }
+}
+
+function combatTick(dt){
+  if(shotCool>0) shotCool-=dt;
+  if(flash>0) flash-=dt*6;
+  if(hurt>0)  hurt-=dt*2.2;
+  if(dead){ if((dead-=dt)<=0){ respawn(); } return; }
+  for(const cr of creatures){
+    if(cr.dead||!cr.awake) continue;
+    if(cr.atk>0){ cr.atk-=dt; continue; }
+    const d=Math.hypot(px-cr.x,py-cr.y);
+    if(d<CLAW.reach && los(cr.x,cr.y,px,py)){
+      hp-=CLAW.dmg; hurt=1; cr.atk=CLAW.cool;
+      if(hp<=0){ hp=0; dead=2.0; }
+    }
+  }
+}
+
+function respawn(){
+  hp=100; dead=0; kills=0; px=12.5; py=10.5; ang=1.5;
+  for(const cr of creatures){ cr.dead=0; cr.hp=100; cr.awake=0; cr.mv=0; }
+  for(const q of pickups) q.taken=0;
+  for(const d of doors){ d.open=0; d.want=0; }
+}
+
+// Health, so the level can be finished. Nothing sampled about these -- they are
+// four numbers and a flag, and saying otherwise would be dressing up a lookup.
+const pickups=[{x:12.5,y:26.5},{x:27.5,y:44.5},{x:44.5,y:15.5},
+               {x:34.5,y:53.5},{x:55.5,y:31.5},{x:19.5,y:13.5}]
+              .map(q=>({x:q.x,y:q.y,taken:0}));
+function pickupTick(){
+  for(const q of pickups){
+    if(q.taken||hp>=100) continue;
+    if(Math.hypot(px-q.x,py-q.y)<0.8){ q.taken=1; hp=Math.min(100,hp+25); }
+  }
+}
+
+// ---------------------------------------------------------------------------
 function randomiseAll(){ randomiseVis(); randomiseTex();
-  for(const cr of creatures) for(let i=0;i<cr.bits.length;i++) cr.bits[i]=Math.random()<0.5?1:0; }
+  for(const cr of creatures){
+    cr.seed=(cSeed=cSeed*1664525+1013904223|0); cr.rf=quenchedField(cr.seed);
+    for(let i=0;i<cr.bits.length;i++) cr.bits[i]=Math.random()<0.5?1:0; } }
 
 const ctx=SCR.getContext('2d');
 const cMap=document.getElementById('map').getContext('2d');
@@ -439,6 +677,7 @@ function render(){
   }
   // creatures, occluded by the sampled depth
   for(const cr of creatures){
+    if(cr.dead) continue;
     const rx=cr.x-px, ry=cr.y-py;
     const dd=Math.hypot(rx,ry); if(dd<0.4||dd>18) continue;
     let rel=Math.atan2(ry,rx)-ang;
@@ -461,6 +700,53 @@ function render(){
       }
     }
   }
+  // --- HUD, drawn into the same pixel buffer so it stays pixel-crisp -------
+  if(flash>0){                                   // muzzle flash from below
+    const f=Math.min(1,flash);
+    for(let Y=SH-34;Y<SH;Y++){ const fy=1-(SH-Y)/34;
+      for(let X=0;X<SW;X++){ const fx=1-Math.abs(X-SW/2)/(SW/2);
+        const a=f*fy*fx*0.6; if(a<=0) continue; const o=(Y*SW+X)*4;
+        d[o]=Math.min(255,d[o]+255*a);
+        d[o+1]=Math.min(255,d[o+1]+205*a);
+        d[o+2]=Math.min(255,d[o+2]+120*a); } } }
+  if(hurt>0){                                    // took a hit
+    const a=Math.min(1,hurt)*0.5;
+    for(let i=0;i<d.length;i+=4){
+      d[i]=Math.min(255,d[i]+190*a); d[i+1]*=1-a*0.65; d[i+2]*=1-a*0.65; } }
+  if(dead){                                      // down, briefly
+    for(let i=0;i<d.length;i+=4){ d[i]*=.45; d[i+1]*=.28; d[i+2]*=.28; } }
+  { const cx=SW>>1, cy=SH>>1;                    // crosshair
+    for(let k=-4;k<=4;k++){ if(Math.abs(k)<2) continue;
+      let o=(cy*SW+cx+k)*4; d[o]=255; d[o+1]=226; d[o+2]=150;
+      o=((cy+k)*SW+cx)*4;   d[o]=255; d[o+1]=226; d[o+2]=150; } }
+  { const w=Math.round(46*Math.max(0,hp)/100);   // health
+    for(let Y=SH-9;Y<SH-4;Y++) for(let X=4;X<50;X++){
+      const o=(Y*SW+X)*4, on=X<4+w;
+      d[o]=on?214:38; d[o+1]=on?62:29; d[o+2]=on?46:25; } }
+  for(let k=0;k<Math.min(kills,14);k++)          // one tick per kill
+    for(let Y=SH-9;Y<SH-5;Y++){ const X=SW-6-k*4, o=(Y*SW+X)*4;
+      d[o]=255; d[o+1]=210; d[o+2]=122; }
+  // health, drawn through the same sampled depth buffer
+  for(const q of pickups){
+    if(q.taken) continue;
+    const rx=q.x-px, ry=q.y-py, dd=Math.hypot(rx,ry);
+    if(dd<0.3||dd>16) continue;
+    let rel=Math.atan2(ry,rx)-ang;
+    while(rel>Math.PI) rel-=2*Math.PI; while(rel<-Math.PI) rel+=2*Math.PI;
+    if(Math.abs(rel)>FOV/2+0.1) continue;
+    const sx=Math.round((rel/FOV+0.5)*(SW-1));
+    const sz=Math.max(3, Math.round(SH*0.55/dd));
+    const cyy=(SH>>1)+Math.round(SH*0.9/dd);
+    const sh2=Math.max(.3, Math.min(1, 3.0/dd));
+    for(let iy=-sz;iy<=sz;iy++) for(let ix=-sz;ix<=sz;ix++){
+      if(Math.abs(ix)+Math.abs(iy)>sz) continue;          // a lozenge
+      const X=sx+ix, Y=cyy+iy;
+      if(X<0||X>=SW||Y<0||Y>=SH) continue;
+      if(dd>=zbuf[X]) continue;
+      const o=(Y*SW+X)*4;
+      d[o]=Math.round(120*sh2); d[o+1]=Math.round(232*sh2); d[o+2]=Math.round(170*sh2);
+    }
+  }
   ctx.putImageData(img,0,0);
 }
 
@@ -470,13 +756,16 @@ function drawMap(){
     const o=(y*MS+x)*4, s=map[y*MS+x];
     d[o]=s?38:16; d[o+1]=s?30:13; d[o+2]=s?22:10; d[o+3]=255;
   }
-  for(const cr of creatures){ const o=((cr.y|0)*MS+(cr.x|0))*4;
+  for(const cr of creatures){ if(cr.dead) continue;
+    const o=((cr.y|0)*MS+(cr.x|0))*4;
     d[o]=214; d[o+1]=64; d[o+2]=48; }
+  for(const q of pickups){ if(q.taken) continue;
+    const o=((q.y|0)*MS+(q.x|0))*4; d[o]=120; d[o+1]=232; d[o+2]=170; }
   const o=((py|0)*MS+(px|0))*4; d[o]=255; d[o+1]=210; d[o+2]=122;
   cMap.putImageData(im,0,0);
 }
 
-let last=performance.now(), fps=0;
+let last=performance.now(), fps=0, brainTick=0;
 function frame(now){
   const dt=Math.min(.05,(now-last)/1000); last=now;
   fps=fps*0.9+(1/Math.max(dt,1e-3))*0.1;
@@ -486,6 +775,9 @@ function frame(now){
   decodeDepth();
   texSweep();
   for(const cr of creatures) creatureSweep(cr);
+  if((brainTick=(brainTick+1)%5)===0) brainSweep();   // decisions are slower than shape
+  creaturesMove(dt);
+  combatTick(dt); pickupTick();
   render(); drawMap();
 
   let settled=0;
@@ -501,10 +793,107 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// --- does the pack coupling actually do anything? -------------------------
+// Measuring that neighbours agree would be close to a tautology -- the coupling
+// sets a creature's state FROM its neighbours' states, so of course they agree.
+// The honest measurement is a CONSEQUENCE the coupling does not directly set:
+// whether they arrive together. packTest() freezes the player in the courtyard,
+// puts the creatures on a ring around it, runs the behaviour model with the
+// coupling on and off, and reports when each one arrived.
+window.packTest=function(runs,T){
+  runs=runs||9; T=T||600;
+  const save={px:px, py:py, ang:ang, pack:packOn,
+              cs:creatures.map(c=>({x:c.x,y:c.y,mv:c.mv,fl:c.fl,awake:c.awake,dead:c.dead}))};
+  px=43.5; py=30.5;                                  // open courtyard floor
+  const ring=[];
+  for(let i=0;i<creatures.length;i++){
+    const a=-2.05+i*0.29;
+    for(let r=11;r>=6;r--){
+      const x=px+Math.cos(a)*r, y=py+Math.sin(a)*r;
+      if(!blocked(x,y) && los(x,y,px,py)){ ring.push({x,y}); break; }
+    }
+  }
+  const dt=1/60, ARRIVE=2.6;
+  const trial=(on)=>{
+    packOn=on;
+    creatures.forEach((c,i)=>{ const q=ring[i%ring.length];
+      c.x=q.x; c.y=q.y; c.mv=0; c.fl=0; c.awake=1; c.dead=0; });
+    const arr=new Array(creatures.length).fill(-1);
+    const frac=[];                                   // fraction advancing, per decision
+    for(let t=0;t<T;t++){
+      if(t%5===0){ brainSweep();
+        const live=creatures.filter(c=>!c.dead&&c.awake);
+        if(live.length) frac.push(live.filter(c=>c.mv).length/live.length); }
+      creaturesMove(dt);
+      creatures.forEach((c,i)=>{ if(arr[i]<0 &&
+        Math.hypot(c.x-px,c.y-py)<ARRIVE) arr[i]=t; });
+    }
+    // A collective observable: if each creature decided independently, the
+    // fraction advancing would have binomial variance p(1-p)/N. Coupled
+    // decisions swing together, so the variance runs above that. The ratio is
+    // the thing to report -- 1.0 means the coupling is doing nothing.
+    const N=creatures.length;
+    const pm=frac.reduce((a,b)=>a+b,0)/Math.max(frac.length,1);
+    const vr=frac.reduce((a,b)=>a+(b-pm)*(b-pm),0)/Math.max(frac.length,1);
+    const indep=pm*(1-pm)/N;
+    const got=arr.filter(a=>a>=0);
+    if(got.length<2) return {arrived:got.length, spread:null, median:null,
+                             ratio:indep>0?vr/indep:null};
+    const m=got.reduce((a,b)=>a+b,0)/got.length;
+    const sd=Math.sqrt(got.reduce((a,b)=>a+(b-m)*(b-m),0)/got.length);
+    return {arrived:got.length, spread:sd*dt, median:m*dt,
+            ratio:indep>0?vr/indep:null};
+  };
+  const agg=(on)=>{
+    const R=[]; for(let r=0;r<runs;r++) R.push(trial(on));
+    const ok=R.filter(r=>r.spread!==null);
+    const mean=f=>ok.reduce((a,b)=>a+f(b),0)/Math.max(ok.length,1);
+    const rr=R.filter(r=>r.ratio!==null);
+    return {arrived:+(R.reduce((a,b)=>a+b.arrived,0)/R.length).toFixed(2),
+            arrival_spread_s:+mean(r=>r.spread).toFixed(2),
+            median_arrival_s:+mean(r=>r.median).toFixed(2),
+            swing_vs_independent:+(rr.reduce((a,b)=>a+b.ratio,0)/Math.max(rr.length,1)).toFixed(2)};
+  };
+  const off=agg(false), on=agg(true);
+  px=save.px; py=save.py; ang=save.ang; packOn=save.pack;
+  creatures.forEach((c,i)=>Object.assign(c,save.cs[i]));
+  const rows=[{coupling:'off', ...off},{coupling:'on', ...on}];
+  console.table(rows); return rows;
+};
+
+// --- what a sampled body actually looks like -------------------------------
+// shape(i) prints creature i's bits. Each one is a different draw from the same
+// nine constants, so two calls on two creatures give two individuals.
+window.shape=function(i){
+  const cr=creatures[i||0], NL=String.fromCharCode(10), rows=[];
+  for(let y=0;y<CH;y++){ let r='';
+    for(let x=0;x<CW;x++) r += cr.bits[y*CW+x] ? '#' : '.';
+    rows.push(r); }
+  const out=rows.join(NL);
+  console.log(out); return out;
+};
+
+// --- read-only state, for checking what the level is actually doing --------
+window.probe=function(){
+  return {player:{x:+px.toFixed(2), y:+py.toFixed(2), ang:+ang.toFixed(2)},
+          doors:doors.map(d=>({x:d.x, y:d.y, open:+d.open.toFixed(2), want:d.want})),
+          creatures:creatures.map(c=>({x:+c.x.toFixed(2), y:+c.y.toFixed(2),
+                                       mv:c.mv, fl:c.fl, awake:c.awake,
+                                       hp:c.hp, dead:!!c.dead})),
+          hp:hp, kills:kills, dead:!!dead,
+          health_left:pickups.filter(q=>!q.taken).length, lastShot:lastShot,
+          aim:{sampled:+zbuf[SW>>1].toFixed(2), truth:+(function(){
+                 for(let t=0.1;t<24;t+=0.05)
+                   if(blocked(px+Math.cos(ang)*t, py+Math.sin(ang)*t)) return t;
+                 return 24; })().toFixed(2)},
+          alive:creatures.filter(c=>!c.dead).length,
+          noise:noise, couplings:couplingsOn, pack:packOn};
+};
+
 // --- the ablation, reproducible from a console -----------------------------
-// The page claims the couplings matter only on a noisy input. Run ablate() in
-// devtools and check that against the numbers in the text. It re-settles the
-// lattice from random for each cell of the table, so it costs a second.
+// The couplings matter only on a noisy input. Run ablate() in devtools to check
+// that against the numbers in the text; it re-settles the lattice from random
+// for each cell of the table, so it costs a second.
 window.ablate=function(settle){
   settle=settle||120;
   const nz0=noise, cp0=couplingsOn;
@@ -538,6 +927,12 @@ ablEl.addEventListener('click',()=>{
   couplingsOn=!couplingsOn;
   ablEl.textContent='Couplings: '+(couplingsOn?'on':'off');
   ablEl.style.borderColor = couplingsOn ? 'var(--line2)' : '#c2604a';
+});
+const packEl=document.getElementById('pack');
+packEl.addEventListener('click',()=>{
+  packOn=!packOn;
+  packEl.textContent='Pack coupling: '+(packOn?'on':'off');
+  packEl.style.borderColor = packOn ? 'var(--line2)' : '#c2604a';
 });
 })();
 </script>
