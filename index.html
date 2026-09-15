@@ -177,17 +177,6 @@
 
         <div class="card">
           <div class="top">
-            <h3>Molten Chat</h3><span class="badge live">Live</span>
-          </div>
-          <div class="viz" data-viz="chat"></div>
-          <p>A frozen LLaMA-3.2-3B run as an energy-based sampler. Clamp a prompt <em>and</em> an
-            ending; watch the middle condense out of the noise. Information flows backward through
-            the sentence &mdash; something no ordinary chatbot can do.</p>
-          <a class="go" href="./chat.html" target="_blank" rel="noopener">Open live demo &rarr;</a>
-        </div>
-
-        <div class="card">
-          <div class="top">
             <h3>Constraint Runtime (Queens)</h3><span class="badge live">Live</span>
           </div>
           <div class="viz" data-viz="queens"></div>
@@ -263,21 +252,6 @@
 
         <div class="card">
           <div class="top">
-            <h3>Paper &mdash; Verified Boltzmann Attention</h3><span class="badge paper">Paper</span>
-          </div>
-          <div class="viz" data-viz="pbit"></div>
-          <p>The full writeup on <strong>ThermoBridge / TASB</strong>: a frozen LLaMA&#8209;3.2&#8209;3B running
-            with its attention replaced by <strong>provably-exact Boltzmann sampling</strong>, no retraining.
-            &chi;&sup2; goodness&#8209;of&#8209;fit against the analytically enumerated target
-            (<strong>mean p &asymp; 0.497</strong>), a blend that is <strong>bit-exact at &alpha;=0</strong>,
-            the measured fidelity envelope in K and &alpha;, four silent corruption bugs found and fixed
-            &mdash; and a full accounting of the ~10&times; cost and the hardware the whole thing is
-            contingent on.</p>
-          <a class="go" href="./paper.html">Read the paper &rarr;</a>
-        </div>
-
-        <div class="card">
-          <div class="top">
             <h3>Paper &mdash; Sampling terrain</h3><span class="badge paper">Paper</span>
           </div>
           <div class="viz" data-viz="worldgen"></div>
@@ -329,15 +303,12 @@
     <div class="wrap">
       <p class="sec-head">Who</p>
       <h2>Paul Shaver.</h2>
-      <p><strong>Independent researcher in thermodynamic computing</strong> &mdash; the effort to turn
-        the physics of noise, heat, and relaxation into useful computation. Creator of
-        <strong>ThermoBridge</strong>, an attempt to run a frozen transformer's attention on
-        thermodynamic hardware &mdash; which I closed myself with a negative result: the softmax is
-        1.16% of an attention row, so the whole-model ceiling is about 0.39% even at zero sampler
-        energy. The measurements, the controls, and the refuted attempts are all public, including
-        the earlier claims that did not survive. I'm building the persistent stochastic runtime
-        above on what did. Self-taught, from complete novice &mdash; and everything here is
-        simulation: no TSU silicon exists to test on yet.</p>
+      <p><strong>Independent researcher in thermodynamic computing</strong> &mdash; computing
+        <em>with</em> the physics of noise and heat instead of spending energy fighting it.</p>
+      <p>I came to this self-taught and from complete novice. No lab, no team, no background in
+        it. I learned it the slow way: build the thing, then try to break it. That second half is
+        still most of the work, and most of what is worth reading here.</p>
+      <p>I would rather be right than first.</p>
     </div>
   </section>
 
@@ -345,8 +316,8 @@
     <div class="wrap">
       <p class="sec-head">Contact</p>
       <h2>Let's talk shop.</h2>
-      <p class="lead">If you work on thermodynamic computing, energy-based models, or you just want
-        to watch an LLM think out loud &mdash; reach out.</p>
+      <p class="lead">If you work on thermodynamic computing or energy-based models &mdash; or you
+        have found something here that is wrong &mdash; reach out.</p>
       <div class="links">
         <a class="btn solid" href="mailto:whtetigr2@gmail.com">Email me</a>
         <a class="btn" href="https://github.com/whtetigr2" target="_blank" rel="noopener">GitHub</a>
