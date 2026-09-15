@@ -177,6 +177,19 @@
 
         <div class="card">
           <div class="top">
+            <h3>Visibility as Inference</h3><span class="badge live">Live</span>
+          </div>
+          <div class="viz" data-viz="worldgen"></div>
+          <p>A renderer computes which wall you see. This samples it. Geometry is written down
+            as an energy and the answer condenses out of a random start &mdash; <strong>no
+            raycaster in the solve path</strong>, reaching the exact solution at &beta;&nbsp;&ge;&nbsp;1
+            and 0% agreement when cold, which is the control. Occlusion is not computed here;
+            it is a constraint the energy will not let you break.</p>
+          <a class="go" href="./visibility.html">Open live demo &rarr;</a>
+        </div>
+
+        <div class="card">
+          <div class="top">
             <h3>Constraint Runtime (Queens)</h3><span class="badge live">Live</span>
           </div>
           <div class="viz" data-viz="queens"></div>
