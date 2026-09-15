@@ -164,15 +164,19 @@
 
         <div class="card">
           <div class="top">
-            <h3>DOOM &mdash; on the sampler</h3><span class="badge live">Live</span>
+            <h3>A Level, Settled</h3><span class="badge live">Live</span>
           </div>
           <div class="viz" data-viz="doom"></div>
-          <p>id Software's real E1M1, running as a <strong>25,000&#8209;cell probabilistic lattice</strong>.
-            Every pixel, the textures, the lighting, the monster AI &mdash; and even <em>which wall you
-            see</em> &mdash; is a sample from a Potts Hamiltonian relaxed by block&#8209;Gibbs. Drop the
-            temperatures and watch the whole world dissolve into noise and re&#8209;condense. Nothing on
-            screen is a fixed image. <em>(Desktop recommended.)</em></p>
-          <a class="go" href="./doom.html" target="_blank" rel="noopener">Open live demo &rarr;</a>
+          <p>A playable first-person level with <strong>0 stored pixels</strong> &mdash; no
+            textures, no sprites, no map data. Which wall you see is a lattice relaxing, and the
+            chains are not restarted between frames, so the sampler tracks you as you move. What
+            the walls are made of is twelve numbers a material. The creatures condense out of a
+            random start under twelve more, with <em>one seed each</em>, so every individual comes
+            out different. They see you, come for you, and can be shot &mdash; and a shot resolves
+            against the depth <strong>the lattice settled on</strong>, so turning the sensor noise
+            up makes your shots stop at walls that are not there. Shaped like the genre,
+            containing none of its data. <em>(Desktop recommended.)</em></p>
+          <a class="go" href="./level.html">Open live demo &rarr;</a>
         </div>
 
         <div class="card">
@@ -190,18 +194,6 @@
           <a class="go" href="./visibility.html">Open live demo &rarr;</a>
         </div>
 
-        <div class="card">
-          <div class="top">
-            <h3>A Level, Settled</h3><span class="badge live">Live</span>
-          </div>
-          <div class="viz" data-viz="worldgen"></div>
-          <p>Walk around a first-person level where <strong>nothing is loaded</strong>. Which wall
-            you see is decided by a lattice relaxing; what it is made of comes from a second one
-            at twelve numbers a material; the creatures come from a third. The chains are not
-            restarted between frames &mdash; the sampler tracks you as you move. Shaped like the
-            genre, containing none of its data.</p>
-          <a class="go" href="./level.html">Open live demo &rarr;</a>
-        </div>
 
         <div class="card">
           <div class="top">
