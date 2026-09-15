@@ -309,7 +309,7 @@
     block-Gibbs sampling on the Potts codon energy from Extropic's
     <a href="https://github.com/extropic-ai/codon_opt" target="_blank" rel="noopener">codon_opt</a>, with real E.&nbsp;coli / human / yeast
     codon-usage tables. The same program was reproduced at scale on the JAX/THRML implementation over the full 1273-aa spike:
-    best energy <span class="val">444.11</span> vs the paper's 444.0 (Hard weights) and <span class="val">233.92</span> vs 234.0 (Standard) &mdash; matching to the decimal.<br>
+    best energy <span class="val">444.11</span> vs the paper's 444.0 (Hard weights) and <span class="val">233.92</span> vs 234.0 (Standard) &mdash; within 0.03% of each published figure (0.11 and 0.08 apart respectively, not exact).<br>
     <b>What this is not.</b> The headline energy advantage (Extropic estimate: <span class="val">10&#8309;&ndash;10&#8313;&times;</span> less energy than a GPU)
     rests on their prototype-hardware measurements &mdash; cited as theirs, not reproduced here. This page proves the <em>algorithm and the
     solution quality</em>, run see-through; the substrate advantage is their measured claim.

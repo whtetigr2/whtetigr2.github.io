@@ -210,23 +210,12 @@
 
         <div class="card">
           <div class="top">
-            <h3>Live Denoiser</h3><span class="badge dev">In development</span>
-          </div>
-          <div class="viz" data-viz="denoise"></div>
-          <p>A denoising thermodynamic model with every pixel exposed as a real measurement of
-            uncertainty and energy &mdash; the honest, see-through version of the demo everyone else
-            renders as a flat grid.</p>
-          <span class="go muted">Coming soon</span>
-        </div>
-
-        <div class="card">
-          <div class="top">
             <h3>Codon Instrument</h3><span class="badge live">Live</span>
           </div>
           <div class="viz" data-viz="codon"></div>
           <p>Extropic's own published codon-optimization energy, run inside this live runtime with real
             E. coli / human / yeast codon tables &mdash; optimize the COVID-19 spike for a human cell and watch
-            every gauge. Reproduced against their baseline to the decimal (444.11 vs 444.0).</p>
+            every gauge. Lands within 0.03% of their published baseline (444.11 vs 444.0).</p>
           <a class="go" href="./codon.html">Open live demo &rarr;</a>
         </div>
 
@@ -342,10 +331,13 @@
       <h2>Paul Shaver.</h2>
       <p><strong>Independent researcher in thermodynamic computing</strong> &mdash; the effort to turn
         the physics of noise, heat, and relaxation into useful computation. Creator of
-        <strong>ThermoBridge</strong>, which runs frozen language models as energy-based samplers,
-        and I'm building the persistent stochastic runtime above as the layer on top. I came to
-        this self-taught, from complete novice, and built it from first principles until the bridge
-        actually ran on real hardware.</p>
+        <strong>ThermoBridge</strong>, an attempt to run a frozen transformer's attention on
+        thermodynamic hardware &mdash; which I closed myself with a negative result: the softmax is
+        1.16% of an attention row, so the whole-model ceiling is about 0.39% even at zero sampler
+        energy. The measurements, the controls, and the refuted attempts are all public, including
+        the earlier claims that did not survive. I'm building the persistent stochastic runtime
+        above on what did. Self-taught, from complete novice &mdash; and everything here is
+        simulation: no TSU silicon exists to test on yet.</p>
     </div>
   </section>
 
@@ -449,8 +441,8 @@ document.querySelectorAll('.viz').forEach(el=>{
     const W=cv.width,H=cv.height,gold=css('--gold'),dim=css('--faint');
     ctx.clearRect(0,0,W,H); t+=reduce?0:0.03;
     ctx.save();
-    if(kind==='chat'||kind==='denoise'){
-      const cols=kind==='chat'?9:14, rows=kind==='chat'?1:5;
+    if(kind==='chat'){
+      const cols=9, rows=1;
       for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
         const settle=(Math.sin(t+c*0.6+r)+1)/2;
         ctx.fillStyle=gold; ctx.globalAlpha=0.15+0.75*settle*settle;
