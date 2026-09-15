@@ -80,9 +80,10 @@
     <h1>Which wall you see,<br>as a sample</h1>
     <p class="lede">A renderer computes visibility: march along a ray, stop at the first wall.
       This does not. The geometry is written down as an <em>energy</em>, and which surface you
-      see is whatever the lattice settles into &mdash; and so is what it is made of. The
-      raycast is only there to mark the answer; it never touches the sampler, and no image is
-      loaded anywhere on this page.</p>
+      see is whatever the lattice settles into &mdash; and so is what it is made of. Turn up the
+      sensor noise and the couplings start doing real work; leave it at zero and they barely
+      matter, which the page says plainly below. The raycast only marks the answer, and no image
+      is loaded anywhere here.</p>
   </div>
 </header>
 
@@ -92,8 +93,11 @@
       <label for="beta">&beta;</label>
       <input type="range" id="beta" min="0.02" max="4" step="0.02" value="0.05">
       <span class="val" id="betaV">0.05</span>
+      <label for="noise" style="margin-left:6px">Sensor noise</label>
+      <input type="range" id="noise" min="0" max="0.10" step="0.005" value="0">
+      <span class="val" id="noiseV">0.0%</span>
+      <button id="couple" aria-pressed="true">Couplings: on</button>
       <button id="reset">Randomise chains</button>
-      <button id="anneal">Anneal &beta; &rarr; 4</button>
       <span class="note" id="sweeps">0 sweeps</span>
     </div>
 
@@ -151,57 +155,49 @@
 
 <section>
   <div class="wrap">
-    <h2>How occlusion becomes a constraint instead of a computation</h2>
-    <p>Depth cannot be a categorical variable on this kind of fabric. Picking one of
-      <em>D</em> depths needs a one-hot constraint, which is a clique &mdash; not
-      two-colourable, and its bias requirement grows with <em>D</em> until it exceeds
-      anything the hardware can express.</p>
-    <p>So depth is a <strong>monotone chain</strong> instead. Each cell carries one bit:
-      <code>v[c][k] = 1</code> means <em>the ray for column c reached depth k still
-      travelling</em>. Three terms, all of them local:</p>
-    <p><strong>Monotonicity.</strong> A cell that has stopped forces everything behind it to
-      have stopped. This is a coupling between vertical neighbours, and it is the whole trick:
-      <em>occlusion stops being something you compute and becomes something the energy
-      forbids.</em> Nothing behind a wall can be seen, because the chain cannot switch back on.</p>
-    <p><strong>Occupancy.</strong> Empty space says keep going. A wall is <em>clamped</em> off
-      &mdash; not nudged, clamped. A wall is a constraint, not a preference.</p>
-    <p><strong>Coherence.</strong> Neighbouring columns prefer similar depth, because walls are
-      continuous. This is the term that makes it a lattice rather than a row of independent
-      one-dimensional puzzles, and it is why the result is a draw from a joint distribution
-      rather than a per-column minimum.</p>
-    <p>Every coupling joins orthogonal neighbours on a grid, so colouring by
-      <code>(column + depth) mod 2</code> two-colours it exactly: bipartite, degree 4. That is
-      a subgraph of the chessboard these machines are built around, which is why it costs
-      nothing extra to run there.</p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>What this does and does not show</h2>
-    <p><strong>It shows</strong> that first-hit visibility can be inferred rather than
-      computed, and that the exact raycast is what the sampler converges to as &beta; rises.
-      The chains start uniformly random every time. The raycast scores the result and is never
-      used to build, seed, or bias the model &mdash; if it were, this would demonstrate nothing.</p>
-    <p><strong>The control is the cold end.</strong> At &beta; = 0.05 agreement is zero. If it
-      were high there, the answer would be arriving from somewhere other than the energy, and
-      the whole page would be theatre.</p>
-    <p><strong>The surfaces are sampled too.</strong> Each material is a handful of coupling
-      constants &mdash; twelve numbers &mdash; and the wall you are looking at is drawn from
-      its own Ising field. A stored 64&times;64 greyscale tile is 4,096 numbers; you can count
-      these, and they are all in the source. Every draw is a different wall of the same kind,
-      which is the opposite of what an asset does.</p>
-    <p><strong>It does not</strong> reproduce any particular surface from any particular game,
-      and it cannot &mdash; there is no pixel data here to reproduce from. It is 2D, it decides
-      one thing per column, and the geometry is input, the way a prompt is input to a sampler.
-      The claim is that <em>visibility and appearance</em> are inferred, not that geometry is
-      conjured.</p>
-    <p>One honest detail: behind the first wall the chain is unconstrained, and you will see
-      cells still reading &ldquo;travelling&rdquo; down there. That is not a bug being tolerated
-      &mdash; behind a wall the ray never passed, <em>has the ray reached here</em> is a question
-      with no answer, and the energy leaves it open on purpose. The decode reads the first stop,
-      so none of it can reach the result. The number that would matter, and is scored above, is
-      whether a ray ever stops in <em>free</em> space.</p>
+    <h2>A correction, and it is the interesting part</h2>
+    <p>This page used to say that occlusion here was <em>a constraint the energy will not let
+      you break</em>. That was wrong, and it was wrong in a way worth showing rather than
+      quietly editing out.</p>
+    <p>Walls were originally <strong>clamped</strong> off &mdash; held at "stopped" and
+      unchangeable. With a clamp, every cell becomes independent: free space says
+      &ldquo;travelling&rdquo; with probability 0.999994, a wall says &ldquo;stopped&rdquo;
+      absolutely, and reading off the first stop is simply reading off the first wall. The
+      couplings between cells contributed <strong>nothing</strong>. Switching them off changed
+      the answer by zero. It was a linear scan for the nearest wall with a lattice running
+      uselessly beside it &mdash; a raycast in a different notation.</p>
+    <p>Every check passed, too: agreement hit 100%, no ray stopped in free space, the cold
+      control sat at 0%. All of those are consistent with couplings that do nothing, because
+      none of them asked whether the couplings mattered. The missing test was an
+      <strong>ablation</strong> &mdash; turn a term off and see if anything changes.</p>
+    <h2 style="margin-top:22px">Where a lattice actually earns its keep</h2>
+    <p>Make a wall a strong <em>bias</em> instead of an absolute clamp and the couplings have
+      something to do: they can outvote a wall the input got wrong. Turn up
+      <strong>Sensor noise</strong> above and the input starts reporting walls in empty space
+      &mdash; the failure a scan cannot survive, because a scan stops at the first thing it is
+      told about. Then press <strong>Couplings: on / off</strong> and watch the difference
+      appear.</p>
+    <p>Measured on <em>this</em> page &mdash; 96 columns, seven runs of 150 sweeps each,
+      agreement with the true nearest surface:</p>
+    <div class="stats" style="margin:14px 0">
+      <div class="stat info"><span class="k">clean input, couplings off</span><span class="v">100.0%</span></div>
+      <div class="stat info"><span class="k">clean input, full lattice</span><span class="v">99.9%</span></div>
+      <div class="stat warn"><span class="k">8% noise, couplings off</span><span class="v">11.9%</span></div>
+      <div class="stat good"><span class="k">8% noise, full lattice</span><span class="v">83.8%</span></div>
+    </div>
+    <p>Read the first two rows before the second two. On a perfect input the couplings do not
+      help &mdash; they cost a tenth of a point. <strong>When the input already contains the
+      answer, a scan is the right tool and a lattice is slightly worse than decoration.</strong>
+      There is no reading of that table on which sampling wins the easy case, and pretending
+      otherwise is how the last version of this page went wrong.</p>
+    <p>What the lattice buys is what a scan cannot have at any price: tolerance for an input
+      that lies. At 8% misreported cells it takes 11.9% to 83.8%, because walls are continuous,
+      rays do not restart, and neighbouring columns see similar things &mdash; facts that live
+      in no single cell and that a first-hit scan has no way to use. That is the whole claim,
+      and it is narrower than the one it replaces.</p>
+    <p>You do not have to take the table on faith. Open a console on this page and run
+      <code>ablate()</code>; it re-settles the lattice from a random start for every cell and
+      prints the numbers above.</p>
     <p>The full write-up and the offline version with its controls live in
       <a href="https://github.com/whtetigr2/tsu-compiler">tsu-compiler</a>, under
       <code>audit/visibility_as_inference.py</code>.</p>
@@ -211,7 +207,10 @@
 <script>
 (function(){
 const NC=96, ND=64;                 // columns, depth bins
-const W_MONO=6.0, W_OCC=3.0, W_COH=0.6;
+const W_MONO=3.0, W_FREE=3.0, W_WALL=4.0, W_COH=1.2;
+let noise=0.0;            // fraction of free cells reported as wall
+let couplingsOn=true;     // the ablation, as a button
+let obs=new Uint8Array(NC*ND);
 let beta=0.05, sweeps=0, annealing=false;
 
 // ---- level: fixed input, the solver never sees the answer it implies ----
@@ -230,10 +229,16 @@ const truth=new Int32Array(NC);
 for(let c=0;c<NC;c++){ let d=ND-1; for(let k=0;k<ND;k++) if(S(c,k)){d=k;break;} truth[c]=d; }
 
 let v=new Uint8Array(NC*ND);
+// The OBSERVED occupancy: the level as the sampler is told about it, which at
+// noise>0 is not the level. Spurious walls in free space are the failure a scan
+// cannot recover from, because a scan stops at the first thing it is told.
+function reobserve(){
+  for(let i=0;i<obs.length;i++)
+    obs[i] = solid[i] ? 1 : (Math.random()<noise ? 1 : 0);
+}
 function randomise(){
   for(let i=0;i<v.length;i++) v[i]=Math.random()<0.5?1:0;
-  for(let i=0;i<v.length;i++) if(solid[i]) v[i]=0;      // clamp
-  sweeps=0;
+  reobserve(); sweeps=0;
 }
 randomise();
 
@@ -243,13 +248,16 @@ function sweep(){
       for(let k=0;k<ND;k++){
         if(((c+k)&1)!==colour) continue;
         const i=c*ND+k;
-        if(solid[i]){ v[i]=0; continue; }               // clamped: a wall is a constraint
-        let f = W_OCC;                                  // empty space: keep going
-        // monotonicity, asymmetric -- each clause fires one way only
-        if(k+1<ND && v[i+1]===1) f += W_MONO;            // something behind is still moving
-        if(k-1>=0 && v[i-1]===0) f -= W_MONO;            // the cell in front has stopped
-        if(c+1<NC) f += W_COH*(2*v[i+ND]-1);             // coherence with neighbours
-        if(c-1>=0) f += W_COH*(2*v[i-ND]-1);
+        // A wall is a strong BIAS, not a clamp. A clamp cannot be outvoted by
+        // anything, which made these couplings inert -- see audit/findings/R23.
+        let f = obs[i] ? -W_WALL : W_FREE;
+        // symmetric chain along depth
+        if(couplingsOn){
+          if(k+1<ND) f += (W_MONO/2)*(2*v[i+1]-1);
+          if(k-1>=0) f += (W_MONO/2)*(2*v[i-1]-1);
+          if(c+1<NC) f += W_COH*(2*v[i+ND]-1);
+          if(c-1>=0) f += W_COH*(2*v[i-ND]-1);
+        }
         const p = 1/(1+Math.exp(-2*beta*f));
         v[i] = Math.random()<p ? 1 : 0;
       }
@@ -460,17 +468,49 @@ function frame(){
   requestAnimationFrame(frame);
 }
 
+document.getElementById('noise').addEventListener('input',e=>{
+  noise=parseFloat(e.target.value);
+  document.getElementById('noiseV').textContent=(noise*100).toFixed(1)+'%';
+  reobserve();
+});
+document.getElementById('couple').addEventListener('click',e=>{
+  couplingsOn=!couplingsOn;
+  e.target.setAttribute('aria-pressed',couplingsOn);
+  e.target.textContent='Couplings: '+(couplingsOn?'on':'off');
+});
 document.getElementById('beta').addEventListener('input',e=>{
   beta=parseFloat(e.target.value); annealing=false;
   document.getElementById('betaV').textContent=beta.toFixed(2);
 });
 document.getElementById('reset').addEventListener('click',()=>{randomise();});
-document.getElementById('anneal').addEventListener('click',()=>{
-  beta=0.05; document.getElementById('beta').value=beta;
-  document.getElementById('betaV').textContent='0.05';
-  randomise(); annealing=true;
-});
+
 requestAnimationFrame(frame);
+
+// --- the ablation, reproducible from a console -----------------------------
+// This page makes a claim about when the couplings matter. Run ablate() in
+// devtools; it re-settles from random for every cell of the table and prints
+// it, so the numbers in the text can be checked rather than believed.
+window.ablate=function(runs,settle){
+  runs=runs||7; settle=settle||150;
+  const nz0=noise, cp0=couplingsOn, b0=beta, an0=annealing;
+  annealing=false; beta=2.2;
+  const measure=(nz,cpl)=>{
+    noise=nz; couplingsOn=cpl; randomise();
+    for(let i=0;i<settle;i++){ reobserve(); sweep(); }
+    const d=decode(); let ok=0;
+    for(let c=0;c<NC;c++) if(d[c]===truth[c]) ok++;
+    return 100*ok/NC; };
+  const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  const rows=[0,0.02,0.05,0.08].map(nz=>{
+    const off=[], on=[];
+    for(let r=0;r<runs;r++){ off.push(measure(nz,false)); on.push(measure(nz,true)); }
+    return {noise:nz, couplings_off:+mean(off).toFixed(1),
+            full_lattice:+mean(on).toFixed(1),
+            gain:+(mean(on)-mean(off)).toFixed(1)}; });
+  noise=nz0; couplingsOn=cp0; beta=b0; annealing=an0; randomise();
+  console.table(rows); return rows;
+};
+
 })();
 </script>
 
