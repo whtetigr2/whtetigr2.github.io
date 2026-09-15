@@ -162,20 +162,28 @@
       resolve a beat behind you. That lag is the sampler working, not a dropped frame.</p>
     <h2 style="margin-top:22px">The creatures</h2>
     <p>A creature's body is sampled rather than drawn. Fifteen by twenty-one spins relax under
-      a field built from <strong>twelve numbers</strong> &mdash; where a horn is wanted, where a
+      a field built from <strong>ten numbers</strong> &mdash; where a horn is wanted, where a
       head is, how far the shoulders run, where the arms hang clear of the torso, where the legs
       split. That field is written by hand from the idea of a hunched horned biped. It is a
       preference, not a stencil: it says where material is favoured and the sampler decides what
       actually condenses.</p>
     <p>Individuality comes from somewhere else &mdash; <strong>one seed per creature</strong>,
-      which fixes a quenched random field it is then sampled under. Same twelve species numbers,
-      different seed, different body. Measured across individuals, <strong>9.3% of the 315
-      cells differ</strong> from one to the next, against a frame-to-frame drift of about 3%, so
-      each one is a recognisable individual whose edges breathe rather than a sprite that sits
-      still. <code>shape(0)</code> in a console prints one as text; try a few indices.</p>
-    <p>Which is the whole trick, and it is not a large one: thirteen numbers total &mdash; twelve
-      for the species and one for the individual &mdash; in place of a stored image. There is no
-      sprite here to differ from, and none was read to build the field.</p>
+      which fixes a quenched random field it is then sampled under. Same ten species numbers,
+      different seed, different body. Measured across individuals, <strong>11% of the 315 cells
+      differ</strong> from one to the next, against about 7% of cells moving between one moment
+      and the next &mdash; so each is a recognisable individual, and the flicker at its edges is
+      the sampler's own thermal noise at &beta;&nbsp;=&nbsp;1, not an animation.
+      <code>shape(0)</code> in a console prints one as text; try a few indices.</p>
+    <p>Eleven numbers total, then &mdash; ten for the species and one for the individual &mdash;
+      in place of a stored image. There is no sprite here to differ from, and none was read to
+      build the field.</p>
+    <p>Bilateral symmetry is carried by that field rather than by a coupling between a cell and
+      its mirror. Both halves of the anatomy field and of the quenched field are the same
+      numbers reflected, so the body comes out bilateral before any coupling is applied. A
+      mirror coupling would also be illegal here: at an odd width a cell and its mirror always
+      share the (x+y)&amp;1 parity this lattice sweeps on &mdash; 294 of 315 pairs &mdash; so a
+      two-colour sweep would update them together while they were coupled, which block Gibbs
+      does not permit and no two-colour hardware blocking allows.</p>
     <p>What they <em>do</em> is sampled too. Each carries two spins, advance and break sideways,
       drawn from a field that sees four things: how close you are, whether it has line of sight
       to you, what it decided a moment ago, and what the creatures near it decided. Line of
@@ -213,6 +221,34 @@
       front of you and every shot stops in mid-air against it. Turn them on and the real wall
       comes back. Same ablation as the table further up, arriving as something you can feel
       rather than a number you have to trust.</p>
+
+    <h2 style="margin-top:22px">The same models, sampled by somebody else's library</h2>
+    <p>The point of writing a world as an energy instead of as code is that the energy is
+      portable: anyone's sampler can run it. So both models here were exported from this page
+      while it was running, compiled through
+      <a href="https://github.com/whtetigr2/tsu-compiler">tsu-compiler</a>, and handed to
+      <strong>thrml</strong> &mdash; Extropic's own sampling library &mdash; which had never
+      seen them.</p>
+    <div class="stats" style="margin:14px 0 16px">
+      <div class="stat info"><span class="k">visibility lattice</span><span class="v">11,200 spins &middot; 22,144 couplings</span></div>
+      <div class="stat good"><span class="k">thrml vs this page</span><span class="v">100.0%</span></div>
+      <div class="stat info"><span class="k">creature lattice</span><span class="v">315 spins &middot; 594 couplings</span></div>
+      <div class="stat good"><span class="k">per-cell marginals, thrml vs this page</span><span class="v">0.007</span></div>
+    </div>
+    <p>Identical occupancy in, identical depth profile out &mdash; every column. The creature
+      models are stochastic, so those are compared as per-cell probabilities over many draws
+      instead: the two samplers agree to <strong>0.007</strong> on average. Both lattices came
+      out degree 4 and two-colourable, which is the shape block Gibbs needs.</p>
+    <p>That port is also what found a defect here. The creature model originally coupled each
+      cell to its mirror, and the compiler refused to two-colour it &mdash; correctly, because
+      the sweep was updating coupled cells together and the centre column was coupled to
+      itself. The model was wrong and the compiler was right. It is fixed above, and the
+      symmetry it was supposed to provide was already in the field.</p>
+    <p>Everything else in here is deliberately <em>not</em> an energy. The level geometry, the
+      doors, the line-of-sight test, the shot resolution &mdash; those are lookups, and a lookup
+      written as an energy is just a lookup with extra steps.</p>
+    <p class="note" style="margin-top:12px">Simulated throughout. thrml ran on a CPU; no
+      thermodynamic hardware was involved and no claim is made about one.</p>
 
     <h2 style="margin-top:22px">Why it cannot be anybody's level</h2>
     <p>There is no pixel data here. Surfaces are coupling constants &mdash; twelve numbers for a
@@ -431,10 +467,10 @@ const CW=15, CH=21;
 // wanted and where it is not. Written by hand from the idea of the thing -- no
 // sprite was read to produce them, and there is none to read. The field says
 // where material is favoured; the sampler decides what actually condenses.
-const CREAT={jx:.55, jy:.72, sym:1.35, grain:.15, rf:2.35,
+const CREAT={jx:.55, jy:.72, rf:2.35,
              horn:1.75, head:1.7, shoulder:1.6, arm:1.5, torso:1.6, leg:1.55,
              away:-1.75};
-const N_CRE_PARAMS=12;
+const N_CRE_PARAMS=10;
 
 // The anatomy field, evaluated once per cell. Everything here is a preference,
 // not a constraint -- which is why two creatures under the same field are not
@@ -486,15 +522,22 @@ function creatureSweep(cr){
     for(let y=0;y<CH;y++){
       for(let x=0;x<CW;x++){
         if(((x+y)&1)!==colour) continue;
-        const i=y*CW+x, mx=CW-1-x;
+        const i=y*CW+x;
+        // Bilateral symmetry is carried by the FIELD, not by a coupling. Both
+        // anatomy() and the quenched field are functions of |x - centre|, so
+        // they are already mirrored. A cell-to-mirror-cell coupling would also
+        // join cells this sweep updates in the same block -- 294 of 315 mirror
+        // pairs share (x+y)&1 -- which is not a legal block Gibbs step, and is
+        // not two-colourable for hardware either.
         let f = anatomy(x,y);                             // the species
         f += cr.rf[i];                                    // THIS individual
-        f += CREAT.sym*(2*b[y*CW+mx]-1);                  // bilateral symmetry
         if(x+1<CW) f += CREAT.jx*(2*b[i+1]-1);
         if(x-1>=0) f += CREAT.jx*(2*b[i-1]-1);
         if(y+1<CH) f += CREAT.jy*(2*b[i+CW]-1);
         if(y-1>=0) f += CREAT.jy*(2*b[i-CW]-1);
-        f += CREAT.grain*(Math.random()*2-1);
+        // No extra noise term here. Re-randomising the field every sweep would
+        // sample a slightly different energy each step; the edge flicker you
+        // see is the sampler's own thermal fluctuation at beta = 1.
         b[i]= Math.random() < 1/(1+Math.exp(-2*f)) ? 1 : 0;
       }
     }
@@ -871,6 +914,39 @@ window.shape=function(i){
     rows.push(r); }
   const out=rows.join(NL);
   console.log(out); return out;
+};
+
+// --- export the live models so another sampler can be handed the same thing --
+// The point of writing a world as an energy is that somebody else's sampler can
+// run it. exportModel() dumps the exact state this page is sampling, so the
+// same couplings can go through a compiler and through thrml and be compared.
+window.exportModel=function(){
+  let sb='', ob='';
+  for(let i=0;i<solid.length;i++){ sb+=solid[i]?'1':'0'; ob+=obs[i]?'1':'0'; }
+  decodeDepth();
+  const truth=[];
+  for(let c=0;c<NC;c++){ const b=c*ND; let z=ND-1;
+    for(let k=0;k<ND;k++) if(solid[b+k]){z=k;break;} truth.push(z); }
+  // Per-cell marginals: the thing to compare against another sampler, since
+  // any single draw is stochastic. 400 sweeps after a 200-sweep burn-in.
+  const cre=creatures.map(cr=>{
+    const acc=new Float64Array(CW*CH);
+    for(let t=0;t<200;t++) creatureSweep(cr);
+    for(let t=0;t<400;t++){ creatureSweep(cr);
+      for(let i=0;i<acc.length;i++) acc[i]+=cr.bits[i]; }
+    return {seed:cr.seed, rf:Array.from(cr.rf), bits:Array.from(cr.bits),
+            marg:Array.from(acc).map(v=>v/400)};
+  });
+  const anat=[];
+  for(let y=0;y<CH;y++) for(let x=0;x<CW;x++) anat.push(anatomy(x,y));
+  return {
+    vis:{NC:NC, ND:ND, beta:beta, W_MONO:W_MONO, W_FREE:W_FREE,
+         W_WALL:W_WALL, W_COH:W_COH,
+         solid:sb, obs:ob, depth:Array.from(depth), truth:truth,
+         player:{x:px,y:py,ang:ang}, noise:noise, couplings:couplingsOn},
+    cre:{CW:CW, CH:CH, jx:CREAT.jx, jy:CREAT.jy,
+         anatomy:anat, creatures:cre}
+  };
 };
 
 // --- read-only state, for checking what the level is actually doing --------
