@@ -80,8 +80,9 @@
     <h1>Which wall you see,<br>as a sample</h1>
     <p class="lede">A renderer computes visibility: march along a ray, stop at the first wall.
       This does not. The geometry is written down as an <em>energy</em>, and which surface you
-      see is whatever the lattice settles into. The raycast on the left is only there to mark
-      the answer &mdash; it never touches the sampler.</p>
+      see is whatever the lattice settles into &mdash; and so is what it is made of. The
+      raycast is only there to mark the answer; it never touches the sampler, and no image is
+      loaded anywhere on this page.</p>
   </div>
 </header>
 
@@ -113,6 +114,22 @@
         <canvas id="view" width="96" height="64" aria-label="The rendered view"></canvas>
         <p class="note">Wall height from the sampled depth. The thin line is the exact
           raycast &mdash; where they coincide, sampling found the true surface.</p>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px">
+      <div class="panel">
+        <div class="ph"><span>Surfaces &mdash; a second lattice</span><span id="texinfo">&mdash;</span></div>
+        <canvas id="tex" width="96" height="64" aria-label="Sampled surface texture"></canvas>
+        <p class="note">The material each wall is made of, sampled from its own Ising field.
+          Nothing is loaded: each surface is a handful of coupling constants, and every draw
+          is a different wall of the same kind.</p>
+      </div>
+      <div class="panel">
+        <div class="ph"><span>Both together</span><span id="bothinfo">geometry sampled &middot; surface sampled</span></div>
+        <canvas id="both" width="96" height="64" aria-label="Textured view"></canvas>
+        <p class="note">Visibility decides which surface you are looking at. The surface
+          model decides what it looks like. Neither reads an image.</p>
       </div>
     </div>
 
@@ -169,9 +186,16 @@
     <p><strong>The control is the cold end.</strong> At &beta; = 0.05 agreement is zero. If it
       were high there, the answer would be arriving from somewhere other than the energy, and
       the whole page would be theatre.</p>
-    <p><strong>It does not</strong> texture, shade, or render a scene. It is 2D and it decides
-      one thing per column. The geometry is input, the way a prompt is input to a sampler; the
-      claim is that <em>visibility</em> is inferred, not that geometry is conjured.</p>
+    <p><strong>The surfaces are sampled too.</strong> Each material is a handful of coupling
+      constants &mdash; twelve numbers &mdash; and the wall you are looking at is drawn from
+      its own Ising field. A stored 64&times;64 greyscale tile is 4,096 numbers; you can count
+      these, and they are all in the source. Every draw is a different wall of the same kind,
+      which is the opposite of what an asset does.</p>
+    <p><strong>It does not</strong> reproduce any particular surface from any particular game,
+      and it cannot &mdash; there is no pixel data here to reproduce from. It is 2D, it decides
+      one thing per column, and the geometry is input, the way a prompt is input to a sampler.
+      The claim is that <em>visibility and appearance</em> are inferred, not that geometry is
+      conjured.</p>
     <p>One honest detail: behind the first wall the chain is unconstrained, and you will see
       cells still reading &ldquo;travelling&rdquo; down there. That is not a bug being tolerated
       &mdash; behind a wall the ray never passed, <em>has the ray reached here</em> is a question
@@ -240,8 +264,78 @@ function decode(){
   return d;
 }
 
+// ---------------------------------------------------------------------------
+// SURFACES. A second lattice, in screen space, three bit-layers deep. Each
+// material is a handful of constants -- there is no image anywhere in here.
+//   jx,jy  coupling per bit    py,px  seam period    st  course stagger
+//   seam   seam depth (must beat 2*jx+2*jy or the mortar vanishes into the face)
+//   base   the surface's own lightness      grain  noise on the lowest bit
+const TB=3;
+const MATS=[
+  {name:'brick',  jx:[1.4,.8,.4], jy:[1.4,.8,.4], py:8,  px:16, st:8,
+                  seam:9.0, base:0.9, grain:.35},
+  {name:'panel',  jx:[1.6,1.0,.5],jy:[1.6,1.0,.5],py:16, px:16, st:0,
+                  seam:8.0, base:0.8, grain:.15},
+  {name:'grating',jx:[.15,.12,.1],jy:[2.0,1.4,.8],py:0,  px:4,  st:0,
+                  seam:7.0, base:0.5, grain:.25},
+  {name:'stone',  jx:[.9,.55,.3], jy:[.85,.5,.28],py:0,  px:0,  st:0,
+                  seam:0.0, base:0.0, grain:.55}
+];
+const N_TEX_PARAMS = 6 + 6;   // per material: 3 jx + 3 jy + 6 scalars
+
+// which material a column's visible wall is made of -- from the level, not a lookup
+function matOf(c){
+  const d=depNow[c];
+  if(d<=12) return 2;                       // the very near wall: grating
+  if(d<=20) return 0;                       // pillar: brick
+  if(d<=28) return 1;                       // block: panel
+  if(d<=38) return 0;                       // ledge: brick
+  return 3;                                 // far wall: stone
+}
+
+let tb=[]; for(let b=0;b<TB;b++) tb.push(new Uint8Array(NC*ND));
+(function seedTex(){ for(let b=0;b<TB;b++) for(let i=0;i<NC*ND;i++)
+  tb[b][i]=Math.random()<0.5?1:0; })();
+
+function texSweep(){
+  for(let colour=0;colour<2;colour++){
+    for(let c=0;c<NC;c++){
+      const M=MATS[matOf(c)];
+      for(let y=0;y<ND;y++){
+        if(((c+y)&1)!==colour) continue;
+        // seam field: periodic, staggered course by course
+        let seam=0;
+        if(M.seam>0){
+          if(M.py && y%M.py===0) seam-=M.seam;
+          if(M.px){ const band=M.py?Math.floor(y/M.py):0;
+                    const off=M.st?(band*M.st)%M.px:0;
+                    if((c+off)%M.px===0) seam-=M.seam; }
+        }
+        for(let b=0;b<TB;b++){
+          const i=y*NC+c, v=tb[b];
+          const jx=M.jx[b], jy=M.jy[b];
+          let f = M.base*(b===0?1:0.5) + seam*(b===0?1:0.45);
+          f += jx*(2*v[y*NC+((c+1)%NC)]-1);
+          f += jx*(2*v[y*NC+((c-1+NC)%NC)]-1);
+          f += jy*(2*v[((y+1)%ND)*NC+c]-1);
+          f += jy*(2*v[((y-1+ND)%ND)*NC+c]-1);
+          if(b===TB-1 && M.grain) f += M.grain*(Math.random()*2-1)*2;
+          v[i] = Math.random() < 1/(1+Math.exp(-2*f)) ? 1 : 0;
+        }
+      }
+    }
+  }
+}
+function texValue(c,y){
+  let val=0; for(let b=0;b<TB;b++) val += tb[b][y*NC+c]*(1<<(TB-1-b));
+  return val/((1<<TB)-1);
+}
+
 const cL=document.getElementById('lattice').getContext('2d');
 const cV=document.getElementById('view').getContext('2d');
+const cT=document.getElementById('tex').getContext('2d');
+const cB=document.getElementById('both').getContext('2d');
+let depNow=new Int32Array(NC).fill(ND-1);
 function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
 function hex(h){h=h.replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
 
@@ -249,6 +343,7 @@ function draw(){
   const gold=hex(css('--gold')), cool=hex(css('--cool')), bad=hex(css('--bad')),
         bg=hex(css('--panel2'));
   const dep=decode();
+  depNow=dep;                                   // matOf() reads this
   const img=cL.createImageData(NC,ND), d=img.data;
   const mix=(a,b,t)=>[Math.round(a[0]+(b[0]-a[0])*t),Math.round(a[1]+(b[1]-a[1])*t),
                       Math.round(a[2]+(b[2]-a[2])*t)];
@@ -290,6 +385,31 @@ function draw(){
     cV.fillRect(c,((ND-h)>>1),1,1);
   }
 
+  // ---- the surface lattice, and the two together ----
+  const it=cT.createImageData(NC,ND), t=it.data;
+  const ib=cB.createImageData(NC,ND), q2=ib.data;
+  for(let c=0;c<NC;c++){
+    const h=Math.max(1,Math.round(ND*(1-dep[c]/ND)));
+    const top=((ND-h)>>1), shade=.30+.70*(1-dep[c]/ND);
+    for(let y=0;y<ND;y++){
+      const o=(y*NC+c)*4, g=texValue(c,y);
+      // left: the raw surface field
+      const s1=Math.round(255*g);
+      t[o]=Math.round(s1*1.0); t[o+1]=Math.round(s1*0.72); t[o+2]=Math.round(s1*0.42); t[o+3]=255;
+      // right: that surface, shown only where visibility says a wall is
+      let col;
+      if(y>=top && y<top+h){
+        const lit=g*shade;
+        col=[Math.round(255*lit), Math.round(184*lit), Math.round(108*lit)];
+      } else col=bg;
+      q2[o]=col[0]; q2[o+1]=col[1]; q2[o+2]=col[2]; q2[o+3]=255;
+    }
+  }
+  cT.putImageData(it,0,0); cB.putImageData(ib,0,0);
+  const seen=new Set(); for(let c=0;c<NC;c++) seen.add(MATS[matOf(c)].name);
+  document.getElementById('texinfo').textContent =
+    [...seen].join(' · ') + '  —  ' + N_TEX_PARAMS + ' params each';
+
   let ok=0, early=0, err=0;
   for(let c=0;c<NC;c++){
     if(dep[c]===truth[c]) ok++;
@@ -329,6 +449,7 @@ function draw(){
 
 function frame(){
   for(let i=0;i<3;i++) sweep();
+  texSweep();
   if(annealing){
     beta=Math.min(4, beta*1.035+0.004);
     document.getElementById('beta').value=beta;
