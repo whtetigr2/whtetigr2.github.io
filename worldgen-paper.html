@@ -749,3 +749,31 @@
   });
 })();
 </script>
+
+<!-- SITE-WIDE HONESTY FOOTER. Injected on every page so the disclosure cannot
+     be true on one page and missing on another. Self-contained styles: it must
+     render the same whatever CSS the host page uses. -->
+<div data-sim-footer style="max-width:820px;margin:48px auto 0;padding:18px 20px 40px;
+     border-top:1px solid rgba(128,128,128,.35);font:400 13.5px/1.65 ui-sans-serif,
+     system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:inherit;opacity:.72">
+  <div style="font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+       letter-spacing:.14em;text-transform:uppercase;opacity:.85;margin-bottom:10px">
+    What this is, and what it is not
+  </div>
+  <p style="margin:0 0 9px">
+    <strong style="opacity:1;font-weight:650">Everything here runs in simulation</strong> &mdash; in your
+    browser, or on a CPU. Nothing on this site has been run on thermodynamic hardware.
+    No TSU silicon exists for me to test on, so no timing, energy, or throughput figure
+    here describes a physical device, and none is offered as one.
+  </p>
+  <p style="margin:0 0 9px">
+    Every number is my own measurement unless it is attributed to someone else, in which
+    case it is theirs and is cited as theirs. <strong style="opacity:1;font-weight:650">I do not treat
+    any of it as established fact until somebody outside this project reproduces it.</strong>
+    Where a claim of mine has failed that test, it is corrected in public rather than removed
+    &mdash; the repositories keep the retractions alongside the results.
+  </p>
+  <p style="margin:0">
+    If you find something here that is wrong, that is a favour and I would like to hear it.
+  </p>
+</div>
