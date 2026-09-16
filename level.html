@@ -477,7 +477,15 @@ const CW=15, CH=21;
 // wanted and where it is not. Written by hand from the idea of the thing -- no
 // sprite was read to produce them, and there is none to read. The field says
 // where material is favoured; the sampler decides what actually condenses.
-const CREAT={jx:.55, jy:.72, rf:2.35,
+// BUILD couples the body to the disposition. The energy carries one extra term,
+//   E += -build * s_mv * (1/n) * SUM over the shoulder-and-torso cells of s_i
+// which is symmetric by construction: the same term appears in the field on the
+// advance spin and in the field on every cell it names. The 1/n is not cosmetic
+// -- without it fifty cells would swamp every other term in the decision, and
+// with it the body moves the decision by up to `build` while the decision moves
+// any single cell by build/n, which is nothing. So a heavy creature presses
+// forward, and pressing forward does not visibly reshape it.
+const CREAT={jx:.55, jy:.72, rf:2.35, build:2.4,
              horn:1.75, head:1.7, shoulder:1.6, arm:1.5, torso:1.6, leg:1.55,
              away:-1.75};
 const N_CRE_PARAMS=10;
@@ -506,6 +514,35 @@ function mulberry(a){ return function(){
   let t=Math.imul(a^a>>>15, 1|a);
   t=t+Math.imul(t^t>>>7, 61|t)^t;
   return ((t^t>>>14)>>>0)/4294967296; }; }
+// The shoulder band and the trunk: what "heavier" means for this species.
+const BUILD_CELLS = (function(){
+  const out=[];
+  for(let y=6;y<=13;y++) for(let x=0;x<CW;x++){
+    const ax=Math.abs(x-(CW-1)/2);
+    if((y<=8 && ax<=5.4) || (y>=9 && ax<=2.4)) out.push(y*CW+x);
+  }
+  return out;
+})();
+const BUILD_N = BUILD_CELLS.length;
+const isBuildCell = (function(){
+  const m=new Uint8Array(CW*CH); for(const i of BUILD_CELLS) m[i]=1; return m; })();
+let buildOn = true;   // the ablation switch for this coupling
+
+// Build RELATIVE TO THE SPECIES, not absolute filled-ness. Measured raw, the
+// build region is mostly filled for every individual, so an absolute reading
+// adds the same positive offset to every creature's decision -- a level shift
+// that makes all of them commit instantly and differentiates none of them.
+// Centred on the species mean it is near zero on average, positive for the
+// heavier draws and negative for the leaner, which is the quantity the claim is
+// actually about.
+let BUILD_REF = 0;
+function buildMassRaw(cr){
+  let sum=0;
+  for(const i of BUILD_CELLS) sum += 2*cr.bits[i]-1;
+  return sum / BUILD_N;
+}
+function buildMass(cr){ return buildMassRaw(cr) - BUILD_REF; }
+
 let cSide=1, cSeed=1;
 function quenchedField(seed){
   // Symmetric by construction, so it shapes the individual instead of fighting
@@ -561,6 +598,15 @@ function unstickCreatures(){
 }
 spawnsMoved = unstickCreatures();
 
+// Calibrate the species mean once, from settled bodies. Deterministic enough:
+// it is an average over every creature after a fixed number of sweeps.
+(function calibrateBuild(){
+  for(let t=0;t<150;t++) for(const cr of creatures) creatureSweep(cr);
+  let sum=0;
+  for(const cr of creatures) sum += buildMassRaw(cr);
+  BUILD_REF = sum / creatures.length;
+})();
+
 for(const cr of creatures) for(let i=0;i<cr.bits.length;i++) cr.bits[i]=Math.random()<0.5?1:0;
 function creatureSweep(cr){
   const b=cr.bits;
@@ -581,6 +627,9 @@ function creatureSweep(cr){
         if(x-1>=0) f += CREAT.jx*(2*b[i-1]-1);
         if(y+1<CH) f += CREAT.jy*(2*b[i+CW]-1);
         if(y-1>=0) f += CREAT.jy*(2*b[i-CW]-1);
+        // the other half of the build coupling: build/n per cell, deliberately
+        // small, so disposition does not reshape the creature in front of you
+        if(buildOn && isBuildCell[i]) f += CREAT.build*(2*cr.mv-1)/BUILD_N;
         // No extra noise term here. Re-randomising the field every sweep would
         // sample a slightly different energy each step; the edge flicker you
         // see is the sampler's own thermal fluctuation at beta = 1.
@@ -643,7 +692,8 @@ function brainSweep(){
     // committed. Written as mv alone, having started keeps you going and
     // standing still says nothing.
     const f = CRE.bias + CRE.near*(1-Math.min(d,CRE.wake)/CRE.wake)
-            + CRE.persist*cr.mv + CRE.pack*pack + (see?CRE.seen:-CRE.seen);
+            + CRE.persist*cr.mv + CRE.pack*pack + (see?CRE.seen:-CRE.seen)
+            + (buildOn ? CREAT.build*buildMass(cr) : 0);
     cr.mv = Math.random() < 1/(1+Math.exp(-2*f)) ? 1 : 0;
     const g = CRE.flank*(2*cr.fl-1) + (see?0.3:-0.5) - 0.45;
     cr.fl = Math.random() < 1/(1+Math.exp(-2*g)) ? 1 : 0;
@@ -895,6 +945,82 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// --- does build actually predict disposition? -----------------------------
+// The claim is that a creature's build and its willingness to come at you are
+// drawn from one energy, so the heavy ones commit sooner.
+//
+// Two things make that hard to measure and both were got wrong first. Holding
+// eight creatures at one distance maxes the pack term for all of them and
+// swamps everything else, so each is tested ALONE. And the advance spin
+// persists once set, so the fraction of ticks spent advancing saturates at ~1
+// and has nothing left to explain -- the statistic is therefore TIME TO FIRST
+// COMMIT, a first-passage time, which does not saturate.
+window.buildTest=function(runs,T){
+  runs=runs||14; T=T||160;
+  const px0=px, py0=py, b0=buildOn;
+  const cs=creatures.map(c=>({x:c.x,y:c.y,mv:c.mv,awake:c.awake,dead:c.dead}));
+  px=43.5; py=30.5;
+
+  const corr=(a,b)=>{
+    const n=a.length; if(n<3) return 0;
+    const ma=a.reduce((x,y)=>x+y,0)/n, mb=b.reduce((x,y)=>x+y,0)/n;
+    let num=0,da=0,db=0;
+    for(let i=0;i<n;i++){ const u=a[i]-ma, v=b[i]-mb; num+=u*v; da+=u*u; db+=v*v; }
+    return (da>0&&db>0) ? num/Math.sqrt(da*db) : 0;
+  };
+
+  const measure=(D)=>{
+    const mass=[], commit=[];
+    for(let r=0;r<runs;r++){
+      for(let k=0;k<creatures.length;k++){
+        const cr=creatures[k];
+        // exactly one creature alive, so the pack term is zero by construction
+        creatures.forEach((c,j)=>{ c.dead = (j!==k); });
+        let spot=null;
+        for(let rr=D; rr<=D+3 && !spot; rr++){
+          for(let a=0;a<48;a++){ const th=a/48*2*Math.PI;
+            const x=px+Math.cos(th)*rr, y=py+Math.sin(th)*rr;
+            if(!blocked(x,y)&&los(x,y,px,py)){ spot={x,y}; break; } }
+        }
+        if(!spot) continue;
+        cr.x=spot.x; cr.y=spot.y; cr.mv=0; cr.awake=1; cr.dead=0;
+        for(let t=0;t<120;t++) creatureSweep(cr);      // settle this individual
+        const m=buildMass(cr);
+        let first=T;
+        for(let t=0;t<T;t++){
+          creatureSweep(cr);
+          brainSweep();
+          cr.x=spot.x; cr.y=spot.y;                    // held: disposition only
+          if(cr.mv){ first=t; break; }
+        }
+        mass.push(m); commit.push(first);
+      }
+    }
+    creatures.forEach(c=>c.dead=0);
+    const idx=mass.map((m,i)=>i).sort((a,b)=>mass[a]-mass[b]);
+    const half=Math.floor(idx.length/2);
+    const mean=a=>a.reduce((x,y)=>x+y,0)/Math.max(a.length,1);
+    const light=mean(idx.slice(0,half).map(i=>commit[i]));
+    const heavy=mean(idx.slice(idx.length-half).map(i=>commit[i]));
+    return {n:mass.length, r:+corr(mass,commit).toFixed(3),
+            light_ticks:+light.toFixed(1), heavy_ticks:+heavy.toFixed(1),
+            gap:+(light-heavy).toFixed(1),
+            massSpread:+(Math.max(...mass)-Math.min(...mass)).toFixed(3)};
+  };
+
+  const rows=[];
+  for(const D of [8,10,12]){
+    buildOn=true;  const on  = measure(D);
+    buildOn=false; const off = measure(D);
+    rows.push({dist:D, massSpread:on.massSpread,
+      on_light:on.light_ticks, on_heavy:on.heavy_ticks, on_gap:on.gap, on_r:on.r,
+      off_light:off.light_ticks, off_heavy:off.heavy_ticks, off_gap:off.gap, off_r:off.r});
+  }
+  px=px0; py=py0; buildOn=b0;
+  creatures.forEach((c,i)=>Object.assign(c,cs[i]));
+  console.table(rows); return rows;
+};
+
 // --- where is the advance decision actually poised? -----------------------
 // A spin pinned at one value is not a decision, and no term feeding it can be
 // load-bearing. This sweeps the resting bias and the self-persistence to find
