@@ -141,18 +141,23 @@
     <div class="stats" style="margin:14px 0 16px">
       <div class="stat info"><span class="k">clean &mdash; couplings off</span><span class="v">100%</span></div>
       <div class="stat info"><span class="k">clean &mdash; full lattice</span><span class="v">100%</span></div>
-      <div class="stat warm"><span class="k">8% noise &mdash; couplings off</span><span class="v">3.9%</span></div>
-      <div class="stat good"><span class="k">8% noise &mdash; full lattice</span><span class="v">83.5%</span></div>
+      <div class="stat warm"><span class="k">8% noise &mdash; couplings off</span><span class="v">3.2%</span></div>
+      <div class="stat good"><span class="k">8% noise &mdash; full lattice</span><span class="v">99.2%</span></div>
     </div>
     <p><strong>On a clean input the couplings are worth nothing</strong> &mdash; 100% either
       way, in all seven runs. When the occupancy already contains the answer, a linear scan
       recovers it and the lattice is an expensive way to match that. Sampling does not win the
       easy case.</p>
     <p>What it buys is robustness to an input that lies. At 8% misreported cells the scan drops
-      to 3.9% and the lattice holds 83.5%, because walls being continuous and rays not
+      to 3.2% and the lattice holds 99.2%, because walls being continuous and rays not
       restarting are facts that no single cell holds and no scan can use. Turn the noise up and
       switch the couplings off to watch the difference directly &mdash; that gap is the
       lattice's entire contribution.</p>
+    <p>Those two coupling strengths were tuned against ground truth rather than by eye. The
+      first version of this page used a coherence term about half its best value, which cost
+      roughly thirty points of accuracy on a noisy input and nothing at all on a clean one
+      &mdash; so nothing on screen looked wrong, and only measuring against the true surface
+      showed it.</p>
     <p>Both numbers are reproducible on this page: open a console and run
       <code>ablate()</code>. It re-settles the lattice from random for every cell of the table
       and prints it.</p>
@@ -212,15 +217,15 @@
       makes the sensor-noise slider a gameplay control rather than a diagnostic: standing still
       in the hall, aimed at a wall 10.6 units away,</p>
     <div class="stats" style="margin:14px 0 16px">
-      <div class="stat warm"><span class="k">8% noise, couplings off &mdash; lattice says</span><span class="v">3.7</span></div>
-      <div class="stat good"><span class="k">8% noise, couplings on &mdash; lattice says</span><span class="v">9.9</span></div>
+      <div class="stat warm"><span class="k">8% noise, couplings off &mdash; lattice says</span><span class="v">2.1</span></div>
+      <div class="stat good"><span class="k">8% noise, couplings on &mdash; lattice says</span><span class="v">10.8</span></div>
       <div class="stat warm"><span class="k">shots stopped in empty air &mdash; off</span><span class="v">12 / 12</span></div>
-      <div class="stat good"><span class="k">shots stopped in empty air &mdash; on</span><span class="v">1 / 12</span></div>
+      <div class="stat good"><span class="k">shots stopped in empty air &mdash; on</span><span class="v">0 / 12</span></div>
     </div>
-    <p>With the couplings off and a noisy input, the lattice invents a wall about four units in
+    <p>With the couplings off and a noisy input, the lattice invents a wall about two units in
       front of you and every shot stops in mid-air against it. Turn them on and the real wall
-      comes back. Same ablation as the table further up, arriving as something you can feel
-      rather than a number you have to trust.</p>
+      comes back &mdash; and stays back at 12% noise too. Same ablation as the table further up,
+      arriving as something you can feel rather than a number you have to trust.</p>
 
     <h2 style="margin-top:22px">The same models, sampled by somebody else's library</h2>
     <p>The point of writing a world as an energy instead of as code is that the energy is
@@ -369,7 +374,12 @@ function buildOccupancy(){
 // below -- first cell that stopped -- would be a plain linear scan. As a bias
 // the couplings can outvote a cell the occupancy input got wrong, which is the
 // one thing here a scan cannot do.
-const W_MONO=3.0, W_FREE=3.0, W_WALL=4.0, W_COH=1.2;
+// Tuned against ground truth on a corrupted input rather than by eye.
+// The coherence term was originally 1.2, which is roughly half its best
+// value: at 8% misreported cells that choice scored 68.2% where 2.4
+// scores 96.3%, and the clean case stays at 100% either way. Past 2.4 it
+// turns back down, so this is an optimum and not a slope.
+const W_MONO=3.2, W_FREE=3.0, W_WALL=4.0, W_COH=2.4;
 let beta=2.2;
 let noise=0.0;             // fraction of free cells misreported as solid
 let couplingsOn=true;      // the ablation, exposed as a button
