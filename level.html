@@ -525,6 +525,42 @@ function newCreature(x,y){ cSide=-cSide; const seed=(cSeed=cSeed*1664525+1013904
 const creatures=[ newCreature(17,38), newCreature(46,24), newCreature(33,52),
                   newCreature(52,30), newCreature(7,42),  newCreature(43,39),
                   newCreature(28,50), newCreature(50,22) ];
+// SPAWNS ARE VALIDATED, NOT TRUSTED. Three of the eight coordinates above were
+// hand-typed into solid geometry -- two inside the courtyard block, one inside
+// the island in the hall. A creature there can never move, because every step
+// blocked() is asked about is inside a wall; it never sees anything, so it
+// never wakes; and it sits on the map as a red mark in the dark. Nudging to the
+// nearest open cell is deterministic (fixed spiral, fixed order), so the level
+// stays reproducible.
+let spawnsMoved = 0;
+
+// Checked EVERY frame, not only at startup, because geometry moves: a creature
+// standing in a doorway when that door swings shut ends up inside a wall by the
+// same mechanism as a bad spawn, and looks identical -- immobile, blind, a red
+// mark in the dark on the map. The test is one array lookup per creature and
+// the spiral only runs in the rare case something is actually embedded.
+function unstickCreatures(){
+  let moved = 0;
+  for(const cr of creatures){
+    if(cr.dead || !blocked(cr.x, cr.y)) continue;
+    let found=null;
+    for(let r=1; r<=14 && !found; r++){
+      for(let a=0; a<72; a++){
+        const th = a/72*2*Math.PI;
+        const x = cr.x + Math.cos(th)*r, y = cr.y + Math.sin(th)*r;
+        if(x<1 || y<1 || x>MS-2 || y>MS-2) continue;
+        if(!blocked(x,y)){ found={x,y}; break; }
+      }
+    }
+    // Nothing within reach is open -- leave it where it is rather than
+    // teleporting it across the level, and say so instead of hiding it.
+    if(found){ cr.x=found.x; cr.y=found.y; moved++; }
+    else console.warn('creature embedded with no open cell within 14');
+  }
+  return moved;
+}
+spawnsMoved = unstickCreatures();
+
 for(const cr of creatures) for(let i=0;i<cr.bits.length;i++) cr.bits[i]=Math.random()<0.5?1:0;
 function creatureSweep(cr){
   const b=cr.bits;
@@ -842,6 +878,7 @@ function frame(now){
   for(const cr of creatures) creatureSweep(cr);
   if((brainTick=(brainTick+1)%5)===0) brainSweep();   // decisions are slower than shape
   creaturesMove(dt);
+  unstickCreatures();
   combatTick(dt); pickupTick();
   render(); drawMap();
 
@@ -1132,14 +1169,14 @@ window.probe=function(){
             const see = d<CRE.wake ? los(c.x,c.y,px,py) : 0;
             return {x:+c.x.toFixed(2), y:+c.y.toFixed(2),
                     mv:c.mv, fl:c.fl, awake:c.awake, hp:c.hp, dead:!!c.dead,
-                    d:+d.toFixed(1), see:see,
+                    d:+d.toFixed(1), see:see, stuck:!!blocked(c.x,c.y),
                     // the advance field WITHOUT the pack term, i.e. what a
                     // creature with no company actually feels
                     field:+(CRE.bias + CRE.near*(1-Math.min(d,CRE.wake)/CRE.wake)
                             + CRE.persist*(2*c.mv-1)
                             + (see?CRE.seen:-CRE.seen)).toFixed(2)};
           }),
-          hp:hp, kills:kills, dead:!!dead,
+          hp:hp, kills:kills, dead:!!dead, spawnsMoved:spawnsMoved,
           health_left:pickups.filter(q=>!q.taken).length, lastShot:lastShot,
           aim:{sampled:+zbuf[SW>>1].toFixed(2), truth:+(function(){
                  for(let t=0.1;t<24;t+=0.05)
