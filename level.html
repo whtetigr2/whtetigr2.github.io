@@ -280,8 +280,21 @@ function rect(x0,y0,x1,y1,v){for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)map[y
 // DOORS. Occupancy that changes while the lattice is mid-relaxation. A renderer
 // redraws a changed world for free; a sampler has to settle into it, and you can
 // watch that happen.
+// A doorway is a RUN of cells, and it opens by retracting into the jamb one
+// cell at a time rather than fading out everywhere at once. Each cell carries
+// its index in that run, so `open` sweeps across the doorway and the gap widens
+// from one side -- movement the visibility lattice can actually see, since
+// occupancy is per cell. Vertical travel is not available: wall height here is
+// a function of distance alone, so a door has no way to rise.
 const doors=[];
-function addDoor(x,y,horiz){ doors.push({x,y,horiz,open:0,want:0}); }
+let doorGroup=0;
+function addDoor(x,y,horiz){
+  doors.push({x,y,horiz,open:0,want:0,group:doorGroup,idx:0,n:1}); }
+function endDoorGroup(){
+  const g=doors.filter(d=>d.group===doorGroup);
+  g.forEach((d,i)=>{ d.idx=i; d.n=g.length; });
+  doorGroup++;
+}
 function doorAt(x,y){ for(const d of doors) if(d.x===(x|0)&&d.y===(y|0)) return d; return null; }
 
 (function build(){
@@ -300,15 +313,48 @@ function doorAt(x,y){ for(const d of doors) if(d.x===(x|0)&&d.y===(y|0)) return 
   for(let i=0;i<7;i++) map[(24+i*3)*MS+34]=1;   // pillars
   // doorways: carve the opening, then hang a door in it
   for(let x=10;x<=15;x++){ map[21*MS+x]=0; addDoor(x,21,true); }      // south corridor
+  endDoorGroup();
   for(let y=36;y<=42;y++){ map[y*MS+31]=0; addDoor(31,y,false); }     // east corridor
+  endDoorGroup();
   for(let x=23;x<=25;x++){ map[13*MS+x]=0; addDoor(x,13,true); }      // upper link
+  endDoorGroup();
   for(let x=24;x<=27;x++){ map[47*MS+x]=0; addDoor(x,47,true); }      // south chamber
+  endDoorGroup();
 })();
 
-// a door blocks while it is less than half open
+// How far this particular cell has retracted. The doorway's `open` sweeps from
+// 0 to 1 across the whole run, so cell idx is untouched until the sweep reaches
+// it, travels over its own 1/n slice, and is clear afterwards.
+function leafOpen(d){
+  const a = d.idx / d.n, b = (d.idx+1) / d.n;
+  if(d.open <= a) return 0;
+  if(d.open >= b) return 1;
+  return (d.open - a) / (b - a);
+}
+
+// PHYSICS is binary: you cannot walk through a half-open door, and neither can
+// a creature. This is the test movement and line of sight use.
 function blocked(x,y){
   if(map[(y|0)*MS+(x|0)]) return true;
-  const d=doorAt(x,y); return d ? d.open<0.5 : false;
+  const d=doorAt(x,y); return d ? leafOpen(d)<0.5 : false;
+}
+
+// WHAT THE LATTICE SEES is not binary, and that difference is the whole reason
+// a door used to vanish in one frame. A door is a wall whose conviction fades
+// as it swings: at open = 0 it is solid, at open = 1 it is not there, and in
+// between it is a weak wall that the couplings can outvote. The visibility
+// sampler then renders the swing itself rather than snapping at a threshold.
+function occAt(x,y){
+  if(map[(y|0)*MS+(x|0)]) return 1;
+  const d=doorAt(x,y); return d ? 1-leafOpen(d) : 0;
+}
+
+// What KIND of thing a ray landed on, so a door can be made of something other
+// than whatever the wall at that distance happens to be made of.
+const KIND_FREE=0, KIND_WALL=1, KIND_DOOR=2;
+function kindAt(x,y){
+  if(map[(y|0)*MS+(x|0)]) return KIND_WALL;
+  return doorAt(x,y) ? KIND_DOOR : KIND_FREE;
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +388,7 @@ function move(dt){
     keys[' ']=0; }
   let moving=0;
   for(const d of doors){ const t=d.want-d.open;
-    if(Math.abs(t)>1e-3){ d.open+=Math.sign(t)*Math.min(Math.abs(t),1.9*dt); moving=1; } }
+    if(Math.abs(t)>1e-3){ d.open+=Math.sign(t)*Math.min(Math.abs(t),0.85*dt); moving=1; } }
   if(moving) disturbed=1;
 }
 
@@ -351,7 +397,8 @@ function move(dt){
 // not a visibility decision. It is recomputed as you move because moving
 // changes which points the rays pass through.
 const NC=200, ND=56, FOV=1.05;
-const solid=new Uint8Array(NC*ND);
+const solid=new Float32Array(NC*ND);     // occupancy STRENGTH in [0,1]
+const kind=new Uint8Array(NC*ND);        // what was hit, for material choice
 const dist=new Float32Array(ND);
 for(let k=0;k<ND;k++) dist[k]=0.35+k*0.26;   // ~15 units of reach
 function buildOccupancy(){
@@ -360,9 +407,12 @@ function buildOccupancy(){
     const cx=Math.cos(a), cy=Math.sin(a);
     for(let k=0;k<ND;k++){
       const d=dist[k];
-      solid[c*ND+k] = blocked(px+cx*d, py+cy*d) ? 1 : 0;
+      const wx=px+cx*d, wy=py+cy*d;
+      solid[c*ND+k] = occAt(wx,wy);
+      kind[c*ND+k]  = kindAt(wx,wy);
     }
     solid[c*ND+ND-1]=1;                       // the world has an edge
+    kind[c*ND+ND-1]=KIND_WALL;
   }
 }
 
@@ -383,11 +433,11 @@ const W_MONO=3.2, W_FREE=3.0, W_WALL=4.0, W_COH=2.4;
 let beta=2.2;
 let noise=0.0;             // fraction of free cells misreported as solid
 let couplingsOn=true;      // the ablation, exposed as a button
-const obs=new Uint8Array(NC*ND);   // what the sampler is TOLD, not what is true
+const obs=new Float32Array(NC*ND); // what the sampler is TOLD, not what is true
 function observe(){
   if(noise<=0){ obs.set(solid); return; }
   for(let i=0;i<solid.length;i++)
-    obs[i] = solid[i] ? 1 : (Math.random()<noise ? 1 : 0);
+    obs[i] = solid[i] > 0 ? solid[i] : (Math.random()<noise ? 1 : 0);
 }
 const v=new Uint8Array(NC*ND);
 function randomiseVis(){ for(let i=0;i<v.length;i++) v[i]=Math.random()<0.5?1:0; }
@@ -399,7 +449,10 @@ function visSweep(){
       for(let k=0;k<ND;k++){
         if(((c+k)&1)!==colour) continue;
         const i=base+k;
-        let f = obs[i] ? -W_WALL : W_FREE;     // strong bias either way
+        // Strength 0 gives the free-space bias, strength 1 the wall bias, and a
+        // door mid-swing sits between them -- a wall the lattice is unsure of.
+        const w = obs[i];
+        let f = W_FREE + w*(-W_WALL - W_FREE);
         if(couplingsOn){
           // symmetric ferromagnetic chain along depth
           if(k+1<ND) f += (W_MONO/2)*(2*v[i+1]-1);
@@ -428,13 +481,24 @@ const MATS=[
   {name:'brick',  jx:[1.4,.8,.4], jy:[1.4,.8,.4], py:10, px:18, st:9, seam:9.0, base:0.9, grain:.35},
   {name:'panel',  jx:[1.6,1.0,.5],jy:[1.6,1.0,.5],py:20, px:20, st:0, seam:8.0, base:0.8, grain:.15},
   {name:'grating',jx:[.15,.12,.1],jy:[2.0,1.4,.8],py:0,  px:5,  st:0, seam:7.0, base:0.5, grain:.25},
-  {name:'stone',  jx:[.9,.55,.3], jy:[.85,.5,.28],py:0,  px:0,  st:0, seam:0.0, base:0.0, grain:.55}
+  {name:'stone',  jx:[.9,.55,.3], jy:[.85,.5,.28],py:0,  px:0,  st:0, seam:0.0, base:0.0, grain:.55},
+  // WOOD. Grain is anisotropy: coupling runs strongly DOWN the plank and weakly
+  // across it, so the sampler lays long vertical fibres instead of blotches.
+  // Wide vertical seams every 13 columns read as plank edges; no horizontal
+  // courses, which is what separates a door from the brick beside it.
+  {name:'wood',   jx:[.22,.18,.14],jy:[1.7,1.1,.6], py:0,  px:13, st:0, seam:6.5, base:0.45, grain:.40}
 ];
-const N_TEX_PARAMS=12;
+const N_TEX_PARAMS=12;   // per material, unchanged by adding one more
 const tb=[]; for(let b=0;b<TB;b++) tb.push(new Uint8Array(TW*TH));
 function randomiseTex(){ for(let b=0;b<TB;b++) for(let i=0;i<TW*TH;i++) tb[b][i]=Math.random()<0.5?1:0; }
 randomiseTex();
-function matFor(c){ const d=depth[c];
+const MAT_WOOD = MATS.findIndex(m=>m.name==='wood');
+// A door is made of wood because it is a door, not because of how far away it
+// happens to be. Everything else still varies with distance, which is what
+// gives the level its bands of brick, panel and stone.
+function matFor(c){
+  if(kind[c*ND + depth[c]] === KIND_DOOR) return MAT_WOOD;
+  const d=depth[c];
   if(d<6) return 2; if(d<14) return 0; if(d<24) return 1; if(d<36) return 0; return 3; }
 function texSweep(){
   for(let colour=0;colour<2;colour++){
