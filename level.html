@@ -564,8 +564,14 @@ function creatureSweep(cr){
 // is not a property of a single creature. PACK controls it, and the button
 // beneath the view turns it off, because a term that cannot be switched off is
 // a term nobody can check.
-const CRE={near:2.2, persist:1.5, pack:1.3, packR:8, wake:15,
-           bias:-0.9, seen:0.9, flank:0.9, speed:1.5};
+// The resting bias and self-persistence set where the advance decision SITS.
+// Tuned so the spin rests near its boundary: shallower and it reads 1 on 99% of
+// ticks, which is not a decision and leaves no term able to change the outcome.
+// Deeper and a creature with no company never commits at all -- the pack term
+// ends up doing the tipping, and a single creature is the no-pack case. Judged
+// on BOTH: a ring of eight, and one alone.
+const CRE={near:2.2, persist:0.8, pack:1.3, packR:8, wake:15,
+           bias:-2.4, seen:0.9, flank:0.9, speed:1.5};
 let packOn=true;
 
 // Line of sight is an OCCUPANCY LOOKUP along the segment -- the same kind of
@@ -594,8 +600,14 @@ function brainSweep(){
       // hold you back, and with everything idle the group never starts.
       if(dd<CRE.packR) pack += o.mv*(1-dd/CRE.packR);
     }
+    // PERSISTENCE IS EXCITATORY ONLY, for the same reason the pack term is:
+    // written as (2*mv-1) it rewards continuing and punishes STARTING by the
+    // same amount, so a creature that sees you from a distance can never begin
+    // -- it is not close enough to commit and cannot get closer without having
+    // committed. Written as mv alone, having started keeps you going and
+    // standing still says nothing.
     const f = CRE.bias + CRE.near*(1-Math.min(d,CRE.wake)/CRE.wake)
-            + CRE.persist*(2*cr.mv-1) + CRE.pack*pack + (see?CRE.seen:-CRE.seen);
+            + CRE.persist*cr.mv + CRE.pack*pack + (see?CRE.seen:-CRE.seen);
     cr.mv = Math.random() < 1/(1+Math.exp(-2*f)) ? 1 : 0;
     const g = CRE.flank*(2*cr.fl-1) + (see?0.3:-0.5) - 0.45;
     cr.fl = Math.random() < 1/(1+Math.exp(-2*g)) ? 1 : 0;
@@ -846,6 +858,158 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// --- where is the advance decision actually poised? -----------------------
+// A spin pinned at one value is not a decision, and no term feeding it can be
+// load-bearing. This sweeps the resting bias and the self-persistence to find
+// the setting where the field sits near its boundary and the other terms can
+// therefore matter. Reported alongside arrival, because a creature that never
+// commits is no better than one that always does.
+window.behaviourTune=function(runs,T){
+  runs=runs||5; T=T||700;
+  const save={...CRE}, px0=px, py0=py;
+  px=43.5; py=30.5;
+  const ring=[];
+  for(let i=0;i<creatures.length;i++){
+    const a=-2.05+i*0.29;
+    for(let r=11;r>=6;r--){ const x=px+Math.cos(a)*r, y=py+Math.sin(a)*r;
+      if(!blocked(x,y)&&los(x,y,px,py)){ ring.push({x,y}); break; } }
+  }
+  const dt=1/60, ARRIVE=2.6;
+  const probe=()=>{
+    let mvOn=0,flOn=0,n=0, arrN=0, arrT=0;
+    for(let r=0;r<runs;r++){
+      creatures.forEach((c,i)=>{ const q=ring[i%ring.length];
+        c.x=q.x;c.y=q.y;c.mv=0;c.fl=0;c.awake=1;c.dead=0; });
+      const arr=new Array(creatures.length).fill(-1);
+      for(let t=0;t<T;t++){
+        if(t%5===0){ brainSweep();
+          for(const c of creatures){ mvOn+=c.mv; flOn+=c.fl; n++; } }
+        creaturesMove(dt);
+        creatures.forEach((c,i)=>{ if(arr[i]<0 &&
+          Math.hypot(c.x-px,c.y-py)<ARRIVE) arr[i]=t; });
+      }
+      const got=arr.filter(a=>a>=0);
+      arrN+=got.length/creatures.length;
+      if(got.length) arrT+=got.reduce((a,b)=>a+b,0)/got.length*dt;
+    }
+    return {advancing:+(mvOn/n).toFixed(3), flanking:+(flOn/n).toFixed(3),
+            arrived:+(arrN/runs).toFixed(2), median:+(arrT/runs).toFixed(2)};
+  };
+  // A LONE creature is the no-pack case, and most encounters in this level are
+  // one or two. Tuning only against a ring of eight lets the pack term do the
+  // tipping and leaves a single creature inert -- which is a regression the
+  // group metric cannot see.
+  const probeLone=()=>{
+    let arrN=0;
+    for(let r=0;r<runs;r++){
+      creatures.forEach((c,i)=>{ c.dead = i>0; });          // exactly one alive
+      const q=ring[0]; const c0=creatures[0];
+      c0.x=q.x; c0.y=q.y; c0.mv=0; c0.fl=0; c0.awake=1; c0.dead=0;
+      let hit=0;
+      for(let t=0;t<T;t++){
+        if(t%5===0) brainSweep();
+        creaturesMove(dt);
+        if(!hit && Math.hypot(c0.x-px,c0.y-py)<ARRIVE) hit=1;
+      }
+      arrN+=hit;
+    }
+    creatures.forEach(c=>c.dead=0);
+    return +(arrN/runs).toFixed(2);
+  };
+  const rows=[];
+  for(const [bias,persist] of [[-0.9,1.5],[-1.1,0.8],[-1.4,0.8],[-1.7,0.8],
+                               [-2.0,0.8],[-2.4,0.8],[-2.8,0.8]]){
+    CRE.bias=bias; CRE.persist=persist;
+    const g=probe();
+    rows.push({bias:bias, persist:persist, advancing:g.advancing,
+               group_arrived:g.arrived, lone_arrived:probeLone(),
+               median:g.median});
+  }
+  Object.assign(CRE,save); px=px0; py=py0;
+  console.table(rows); return rows;
+};
+
+// --- is ANY of the behaviour field load-bearing? --------------------------
+// Five terms decide whether a creature advances and one decides whether it
+// breaks sideways. Only the pack term had ever been switched off. A field whose
+// terms do nothing is a field that cannot be built on, so each one is zeroed in
+// turn and judged on a CONSEQUENCE -- did it reach you, how fast, how straight
+// -- rather than on whether the spin values moved.
+window.behaviourAblate=function(runs,T){
+  runs=runs||9; T=T||700;
+  const save={...CRE}, px0=px, py0=py, pack0=packOn;
+  const cs=creatures.map(c=>({x:c.x,y:c.y,mv:c.mv,fl:c.fl,awake:c.awake,dead:c.dead}));
+  px=43.5; py=30.5; packOn=true;
+  const ring=[];
+  for(let i=0;i<creatures.length;i++){
+    const a=-2.05+i*0.29;
+    for(let r=11;r>=6;r--){
+      const x=px+Math.cos(a)*r, y=py+Math.sin(a)*r;
+      if(!blocked(x,y) && los(x,y,px,py)){ ring.push({x,y}); break; }
+    }
+  }
+  const dt=1/60, ARRIVE=2.6;
+  const trial=()=>{
+    creatures.forEach((c,i)=>{ const q=ring[i%ring.length];
+      c.x=q.x; c.y=q.y; c.mv=0; c.fl=0; c.awake=1; c.dead=0; });
+    const arr=new Array(creatures.length).fill(-1);
+    const path=new Array(creatures.length).fill(0);
+    const start=creatures.map(c=>({x:c.x,y:c.y}));
+    let prev=creatures.map(c=>({x:c.x,y:c.y}));
+    for(let t=0;t<T;t++){
+      if(t%5===0) brainSweep();
+      creaturesMove(dt);
+      creatures.forEach((c,i)=>{
+        path[i]+=Math.hypot(c.x-prev[i].x, c.y-prev[i].y);
+        prev[i]={x:c.x,y:c.y};
+        if(arr[i]<0 && Math.hypot(c.x-px,c.y-py)<ARRIVE) arr[i]=t;
+      });
+    }
+    const got=arr.filter(a=>a>=0);
+    // wander = path walked / straight-line distance. 1.0 is a beeline.
+    const wander=creatures.map((c,i)=>{
+      const net=Math.hypot(start[i].x-px, start[i].y-py);
+      return net>0.5 ? path[i]/net : null; }).filter(v=>v!==null && v>0);
+    return {arrived:got.length/creatures.length,
+            median: got.length ? got.reduce((a,b)=>a+b,0)/got.length*dt : null,
+            wander: wander.length ? wander.reduce((a,b)=>a+b,0)/wander.length : null};
+  };
+  const agg=()=>{
+    const R=[]; for(let r=0;r<runs;r++) R.push(trial());
+    const ok=R.filter(x=>x.median!==null);
+    const m=(f,src)=>src.length ? src.reduce((a,b)=>a+f(b),0)/src.length : null;
+    return {arrived:+m(x=>x.arrived,R).toFixed(2),
+            median:ok.length?+m(x=>x.median,ok).toFixed(2):null,
+            wander:+m(x=>x.wander,R.filter(x=>x.wander!==null)).toFixed(2)};
+  };
+  // WHY, not just whether. If a spin is pinned at one value the field is not
+  // deciding anything, and every ablation of it will read as "no effect".
+  const saturation=()=>{
+    creatures.forEach((c,i)=>{ const q=ring[i%ring.length];
+      c.x=q.x; c.y=q.y; c.mv=0; c.fl=0; c.awake=1; c.dead=0; });
+    let mvOn=0, flOn=0, n=0;
+    for(let t=0;t<600;t++){
+      if(t%5===0){ brainSweep();
+        for(const c of creatures){ mvOn+=c.mv; flOn+=c.fl; n++; } }
+      creaturesMove(dt);
+    }
+    return {advancing:+(mvOn/n).toFixed(3), flanking:+(flOn/n).toFixed(3)};
+  };
+  const sat = saturation();
+  const rows=[{term:'(full model)', ...agg()}];
+  for(const k of ['near','persist','pack','seen','flank','bias']){
+    const keep=CRE[k]; CRE[k]=0;
+    rows.push({term:'no '+k, ...agg()});
+    CRE[k]=keep;
+  }
+  Object.assign(CRE, save);
+  px=px0; py=py0; packOn=pack0;
+  creatures.forEach((c,i)=>Object.assign(c,cs[i]));
+  console.table(rows);
+  console.log('spin occupancy:', sat);
+  return {rows:rows, saturation:sat};
+};
+
 // --- does the pack coupling actually do anything? -------------------------
 // Measuring that neighbours agree would be close to a tautology -- the coupling
 // sets a creature's state FROM its neighbours' states, so of course they agree.
@@ -963,9 +1127,18 @@ window.exportModel=function(){
 window.probe=function(){
   return {player:{x:+px.toFixed(2), y:+py.toFixed(2), ang:+ang.toFixed(2)},
           doors:doors.map(d=>({x:d.x, y:d.y, open:+d.open.toFixed(2), want:d.want})),
-          creatures:creatures.map(c=>({x:+c.x.toFixed(2), y:+c.y.toFixed(2),
-                                       mv:c.mv, fl:c.fl, awake:c.awake,
-                                       hp:c.hp, dead:!!c.dead})),
+          creatures:creatures.map(c=>{
+            const d=Math.hypot(px-c.x, py-c.y);
+            const see = d<CRE.wake ? los(c.x,c.y,px,py) : 0;
+            return {x:+c.x.toFixed(2), y:+c.y.toFixed(2),
+                    mv:c.mv, fl:c.fl, awake:c.awake, hp:c.hp, dead:!!c.dead,
+                    d:+d.toFixed(1), see:see,
+                    // the advance field WITHOUT the pack term, i.e. what a
+                    // creature with no company actually feels
+                    field:+(CRE.bias + CRE.near*(1-Math.min(d,CRE.wake)/CRE.wake)
+                            + CRE.persist*(2*c.mv-1)
+                            + (see?CRE.seen:-CRE.seen)).toFixed(2)};
+          }),
           hp:hp, kills:kills, dead:!!dead,
           health_left:pickups.filter(q=>!q.taken).length, lastShot:lastShot,
           aim:{sampled:+zbuf[SW>>1].toFixed(2), truth:+(function(){
